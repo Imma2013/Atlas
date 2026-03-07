@@ -40,7 +40,7 @@ export const getMicrosoftAuthUrl = (state?: string): string => {
     'offline_access',
     'User.Read',
     'Mail.Read',
-    'Mail.Send',
+    'Mail.ReadWrite',
     'Calendars.Read',
     'Files.Read',
     'Files.ReadWrite',
@@ -109,27 +109,24 @@ export const listEmails = async (accessToken: string, top = 10) =>
 export const getEmailById = async (accessToken: string, id: string) =>
   graphRequest<Record<string, any>>(`/me/messages/${id}`, accessToken);
 
-export const sendEmail = async (input: {
+export const createEmailDraft = async (input: {
   accessToken: string;
   to: string[];
   subject: string;
   body: string;
   contentType?: 'Text' | 'HTML';
 }) =>
-  graphRequest<void>('/me/sendMail', input.accessToken, {
+  graphRequest<Record<string, any>>('/me/messages', input.accessToken, {
     method: 'POST',
     body: JSON.stringify({
-      message: {
-        subject: input.subject,
-        body: {
-          contentType: input.contentType || 'Text',
-          content: input.body,
-        },
-        toRecipients: input.to.map((address) => ({
-          emailAddress: { address },
-        })),
+      subject: input.subject,
+      body: {
+        contentType: input.contentType || 'Text',
+        content: input.body,
       },
-      saveToSentItems: true,
+      toRecipients: input.to.map((address) => ({
+        emailAddress: { address },
+      })),
     }),
   });
 

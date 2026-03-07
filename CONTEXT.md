@@ -277,3 +277,5 @@ Expected response:
   Next: User updates Azure app permissions (Files.ReadWrite) and reconnects Microsoft to test Word creation
 - [2026-03-07 16:33:09] [T1] [Done] Task: Added OneDrive CRUD-style API support (list children/content, create file/folder, update file), added Outlook send endpoint, enabled multi-output Word/Excel/PowerPoint OneDrive exports from chat, and added OneDrive app tile/logo
   Next: User: add Azure Graph delegated permissions + grant consent, reconnect Microsoft, then retest /apps and chat exports
+- [2026-03-07 16:43:16] [T1] [Done] Task: Switched Microsoft mail flow to draft-only (Mail.ReadWrite scope + /api/microsoft/drafts), removed send route, and kept OneDrive multi-output generation for Word/Excel/PowerPoint
+  Next: User: verify Azure delegated permissions and reconnect Microsoft; then test draft + OneDrive exports
