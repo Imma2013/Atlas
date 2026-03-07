@@ -737,9 +737,7 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
         brainMode: true,
         userId,
         openRouterModels: {
-          routerModel: 'anthropic/claude-haiku-4.5',
           midModel: selectedChatModel,
-          bigModel: 'anthropic/claude-opus-4',
         },
       }),
     });

@@ -263,3 +263,5 @@ Expected response:
   Next: Redeploy and run Settings > Integration Diagnostics
 - [2026-03-07 13:45:41] [T1] [Done] Task: Added grounded anti-hallucination system rules, workspace-first source mode with manual web toggle behavior, and visual app logos/cards in Apps tab
   Next: Redeploy and verify workspace/web source behavior + app visuals
+- [2026-03-07 14:04:11] [T1] [Done] Task: Migrated LLM gateway to LiteLLM-first with OpenRouter fallback; added provider-aware diagnostics and LiteLLM model defaults/README env guide
+  Next: Set Vercel LiteLLM env vars and verify in Settings diagnostics

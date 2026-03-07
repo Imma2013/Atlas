@@ -246,6 +246,11 @@ class ConfigManager {
       this.currentConfig.setupComplete = true;
     }
 
+    // Atlas brain mode can also run via LiteLLM gateway.
+    if (process.env.LITELLM_BASE_URL) {
+      this.currentConfig.setupComplete = true;
+    }
+
     /* search section */
     this.uiConfigSections.search.forEach((f) => {
       if (f.env && !this.currentConfig.search[f.key]) {

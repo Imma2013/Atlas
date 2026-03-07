@@ -11,6 +11,7 @@ export type OpenRouterChatOptions = {
 };
 
 const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
+const LITELLM_DEFAULT_BASE = 'http://localhost:4000';
 
 const getModelFallbacks = (model: string): string[] => {
   if (model === 'anthropic/claude-sonnet-4') {
@@ -38,38 +39,68 @@ const getModelFallbacks = (model: string): string[] => {
   return [model];
 };
 
+const normalizeBaseUrl = (raw: string) => raw.replace(/\/+$/, '');
+
+const getGatewayConfig = () => {
+  const litellmBaseUrl = process.env.LITELLM_BASE_URL;
+  const litellmApiKey = process.env.LITELLM_API_KEY;
+  const openRouterApiKey = process.env.OPENROUTER_API_KEY;
+
+  if (litellmBaseUrl) {
+    return {
+      provider: 'litellm' as const,
+      endpoint: `${normalizeBaseUrl(litellmBaseUrl || LITELLM_DEFAULT_BASE)}/chat/completions`,
+      apiKey: litellmApiKey || '',
+      extraHeaders: {} as Record<string, string>,
+    };
+  }
+
+  if (openRouterApiKey) {
+    return {
+      provider: 'openrouter' as const,
+      endpoint: OPENROUTER_URL,
+      apiKey: openRouterApiKey,
+      extraHeaders: {
+        'HTTP-Referer': process.env.OPENROUTER_SITE_URL || 'http://localhost:3000',
+        'X-Title': process.env.OPENROUTER_APP_NAME || 'Atlas Brain',
+      } as Record<string, string>,
+    };
+  }
+
+  throw new Error('Missing LITELLM_BASE_URL (preferred) or OPENROUTER_API_KEY');
+};
+
 export const callOpenRouterChat = async (
   input: OpenRouterChatOptions,
 ): Promise<string> => {
-  const apiKey = process.env.OPENROUTER_API_KEY;
-
-  if (!apiKey) {
-    throw new Error('Missing OPENROUTER_API_KEY');
-  }
-
+  const gateway = getGatewayConfig();
   const modelCandidates = getModelFallbacks(input.model);
   let lastError = '';
 
   for (const model of modelCandidates) {
-    const response = await fetch(OPENROUTER_URL, {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      ...gateway.extraHeaders,
+    };
+    if (gateway.apiKey) {
+      headers.Authorization = `Bearer ${gateway.apiKey}`;
+    }
+
+    const response = await fetch(gateway.endpoint, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${apiKey}`,
-        'HTTP-Referer': process.env.OPENROUTER_SITE_URL || 'http://localhost:3000',
-        'X-Title': process.env.OPENROUTER_APP_NAME || 'Atlas Brain',
-      },
+      headers,
       body: JSON.stringify({
         model,
         messages: input.messages,
         temperature: input.temperature ?? 0.2,
         max_tokens: input.maxTokens ?? 800,
       }),
+      cache: 'no-store',
     });
 
     if (!response.ok) {
       const errorText = await response.text();
-      lastError = `model=${model} status=${response.status} body=${errorText}`;
+      lastError = `provider=${gateway.provider} model=${model} status=${response.status} body=${errorText}`;
       continue;
     }
 
@@ -83,5 +114,7 @@ export const callOpenRouterChat = async (
     }
   }
 
-  throw new Error(`OpenRouter request failed across model fallbacks: ${lastError}`);
+  throw new Error(
+    `LLM gateway request failed across model fallbacks: ${lastError}`,
+  );
 };

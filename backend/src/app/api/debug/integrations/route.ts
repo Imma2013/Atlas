@@ -2,7 +2,6 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 const OPENROUTER_MODELS_ENDPOINT = 'https://openrouter.ai/api/v1/models';
-
 const CLAUDE_TARGET_MODELS = [
   'anthropic/claude-haiku-4.5',
   'anthropic/claude-sonnet-4',
@@ -13,6 +12,56 @@ const mask = (value?: string) => {
   if (!value) return null;
   if (value.length <= 8) return `${value.slice(0, 2)}***${value.slice(-2)}`;
   return `${value.slice(0, 4)}...${value.slice(-4)}`;
+};
+
+const normalizeBaseUrl = (raw: string) => raw.replace(/\/+$/, '');
+
+const checkModelEndpoint = async (input: {
+  endpoint: string;
+  apiKey?: string;
+}) => {
+  const status = {
+    modelsEndpointReachable: false,
+    discoveredModelCount: 0,
+    claudeTargets: Object.fromEntries(
+      CLAUDE_TARGET_MODELS.map((model) => [model, false]),
+    ),
+    error: null as string | null,
+  };
+
+  try {
+    const response = await fetch(input.endpoint, {
+      headers: {
+        ...(input.apiKey ? { Authorization: `Bearer ${input.apiKey}` } : {}),
+        'Content-Type': 'application/json',
+      },
+      cache: 'no-store',
+    });
+
+    status.modelsEndpointReachable = response.ok;
+
+    if (!response.ok) {
+      status.error = `Models endpoint failed (${response.status}): ${await response.text()}`;
+      return status;
+    }
+
+    const payload = (await response.json()) as {
+      data?: Array<{ id?: string; model?: string }>;
+    };
+    const ids = (payload.data || [])
+      .map((model) => model.id || model.model || '')
+      .filter(Boolean);
+
+    status.discoveredModelCount = ids.length;
+    status.claudeTargets = Object.fromEntries(
+      CLAUDE_TARGET_MODELS.map((model) => [model, ids.includes(model)]),
+    );
+
+    return status;
+  } catch (error: any) {
+    status.error = error?.message || 'Failed to reach model endpoint';
+    return status;
+  }
 };
 
 export const GET = async () => {
@@ -33,64 +82,73 @@ export const GET = async () => {
       microsoftRedirectConfigured === microsoftRedirectExpected,
   };
 
-  const openRouterKey = process.env.OPENROUTER_API_KEY;
-  const openrouter: Record<string, any> = {
-    apiKeyConfigured: Boolean(openRouterKey),
+  const litellmBase = process.env.LITELLM_BASE_URL;
+  const litellmModelsEndpoint = litellmBase
+    ? `${normalizeBaseUrl(litellmBase)}/models`
+    : null;
+  const litellmKey = process.env.LITELLM_API_KEY || '';
+  const openRouterKey = process.env.OPENROUTER_API_KEY || '';
+
+  const activeProvider = litellmBase ? 'litellm' : openRouterKey ? 'openrouter' : 'none';
+
+  const litellm = {
+    configured: Boolean(litellmBase),
+    baseUrl: litellmBase || null,
+    apiKeyMasked: mask(litellmKey),
+    ...(litellmModelsEndpoint
+      ? await checkModelEndpoint({
+          endpoint: litellmModelsEndpoint,
+          apiKey: litellmKey || undefined,
+        })
+      : {
+          modelsEndpointReachable: false,
+          discoveredModelCount: 0,
+          claudeTargets: Object.fromEntries(
+            CLAUDE_TARGET_MODELS.map((model) => [model, false]),
+          ),
+          error: null,
+        }),
+  };
+
+  const openrouter = {
+    configured: Boolean(openRouterKey),
     apiKeyMasked: mask(openRouterKey),
     siteUrl: process.env.OPENROUTER_SITE_URL || appUrl,
     appName: process.env.OPENROUTER_APP_NAME || 'Atlas Brain',
-    modelsEndpointReachable: false,
-    discoveredModelCount: 0,
-    claudeTargets: Object.fromEntries(
-      CLAUDE_TARGET_MODELS.map((model) => [model, false]),
-    ),
-    error: null,
+    ...(openRouterKey
+      ? await checkModelEndpoint({
+          endpoint: OPENROUTER_MODELS_ENDPOINT,
+          apiKey: openRouterKey,
+        })
+      : {
+          modelsEndpointReachable: false,
+          discoveredModelCount: 0,
+          claudeTargets: Object.fromEntries(
+            CLAUDE_TARGET_MODELS.map((model) => [model, false]),
+          ),
+          error: null,
+        }),
   };
-
-  if (openRouterKey) {
-    try {
-      const response = await fetch(OPENROUTER_MODELS_ENDPOINT, {
-        headers: {
-          Authorization: `Bearer ${openRouterKey}`,
-          'Content-Type': 'application/json',
-        },
-        cache: 'no-store',
-      });
-
-      openrouter.modelsEndpointReachable = response.ok;
-
-      if (!response.ok) {
-        const text = await response.text();
-        openrouter.error = `OpenRouter models failed (${response.status}): ${text}`;
-      } else {
-        const payload = (await response.json()) as {
-          data?: Array<{ id?: string }>;
-        };
-        const ids = (payload.data || [])
-          .map((model) => model.id || '')
-          .filter(Boolean);
-
-        openrouter.discoveredModelCount = ids.length;
-        openrouter.claudeTargets = Object.fromEntries(
-          CLAUDE_TARGET_MODELS.map((model) => [model, ids.includes(model)]),
-        );
-      }
-    } catch (error: any) {
-      openrouter.error = error?.message || 'Failed to reach OpenRouter models endpoint';
-    }
-  }
 
   return Response.json(
     {
       timestamp: new Date().toISOString(),
+      activeProvider,
       microsoft,
+      litellm,
       openrouter,
       recommendations: [
         microsoft.redirectUriMatchesAppUrl
           ? null
           : `Set MICROSOFT_REDIRECT_URI to ${microsoftRedirectExpected} and add the same URI in Azure App Registration.`,
-        !openrouter.apiKeyConfigured
-          ? 'Set OPENROUTER_API_KEY in Vercel environment variables.'
+        !litellm.configured
+          ? 'Set LITELLM_BASE_URL to use Anthropic + Gemini direct keys through LiteLLM.'
+          : null,
+        litellm.configured && !litellm.modelsEndpointReachable
+          ? 'LiteLLM is configured but /models is not reachable. Check URL, key, and LiteLLM deployment.'
+          : null,
+        !litellm.configured && !openrouter.configured
+          ? 'Set either LITELLM_BASE_URL (preferred) or OPENROUTER_API_KEY.'
           : null,
       ].filter(Boolean),
     },

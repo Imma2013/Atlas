@@ -40,6 +40,28 @@ This project is licensed under the MIT License. See [LICENSE](./LICENSE).
 - Default tasks: `anthropic/claude-sonnet-4`
 - Heavy tasks: `anthropic/claude-opus-4`
 
+## LiteLLM Gateway (Recommended)
+
+Atlas now supports `LiteLLM -> OpenRouter fallback`.
+
+- Preferred: configure LiteLLM and route Anthropic + Gemini through it.
+- Fallback: if LiteLLM is not configured, Atlas uses OpenRouter.
+
+Set these env vars in Vercel for LiteLLM:
+
+- `LITELLM_BASE_URL` (example: `https://your-litellm.example.com/v1`)
+- `LITELLM_API_KEY` (if your LiteLLM gateway requires auth)
+- `LITELLM_ROUTER_MODEL` (default: `atlas-router`)
+- `LITELLM_MID_MODEL` (default: `atlas-mid`)
+- `LITELLM_BIG_MODEL` (default: `atlas-big`)
+
+OpenRouter fallback env vars (optional):
+
+- `OPENROUTER_API_KEY`
+- `OPENROUTER_ROUTER_MODEL`
+- `OPENROUTER_MID_MODEL`
+- `OPENROUTER_BIG_MODEL`
+
 ## Dev Notes
 
 - Read `CONTEXT.md` before starting work.

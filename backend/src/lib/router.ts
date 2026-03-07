@@ -15,10 +15,21 @@ export type RouterModelConfig = {
   bigModel: string;
 };
 
+const isLiteLLMConfigured = Boolean(process.env.LITELLM_BASE_URL);
+
 export const defaultRouterModelConfig: RouterModelConfig = {
-  routerModel: process.env.OPENROUTER_ROUTER_MODEL || 'anthropic/claude-haiku-4.5',
-  midModel: process.env.OPENROUTER_MID_MODEL || 'anthropic/claude-sonnet-4',
-  bigModel: process.env.OPENROUTER_BIG_MODEL || 'anthropic/claude-opus-4',
+  routerModel:
+    process.env.LITELLM_ROUTER_MODEL ||
+    process.env.OPENROUTER_ROUTER_MODEL ||
+    (isLiteLLMConfigured ? 'atlas-router' : 'anthropic/claude-haiku-4.5'),
+  midModel:
+    process.env.LITELLM_MID_MODEL ||
+    process.env.OPENROUTER_MID_MODEL ||
+    (isLiteLLMConfigured ? 'atlas-mid' : 'anthropic/claude-sonnet-4'),
+  bigModel:
+    process.env.LITELLM_BIG_MODEL ||
+    process.env.OPENROUTER_BIG_MODEL ||
+    (isLiteLLMConfigured ? 'atlas-big' : 'anthropic/claude-opus-4'),
 };
 
 const intentLabels: BrainIntent[] = [
