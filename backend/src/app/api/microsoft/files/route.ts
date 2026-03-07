@@ -1,0 +1,33 @@
+import { getDriveItemContent, listDriveRootChildren } from '@/lib/microsoft';
+
+export const runtime = 'nodejs';
+
+const getAccessToken = (req: Request) =>
+  req.headers.get('x-microsoft-access-token') ||
+  req.headers.get('authorization')?.replace(/^Bearer\s+/i, '');
+
+export const GET = async (req: Request) => {
+  try {
+    const accessToken = getAccessToken(req);
+    if (!accessToken) {
+      return Response.json({ message: 'Missing Microsoft access token' }, { status: 401 });
+    }
+
+    const { searchParams } = new URL(req.url);
+    const fileId = searchParams.get('id');
+    const includeContent = searchParams.get('content') === '1';
+
+    if (fileId && includeContent) {
+      const content = await getDriveItemContent(accessToken, fileId);
+      return Response.json({ fileId, content }, { status: 200 });
+    }
+
+    const files = await listDriveRootChildren(accessToken, 25);
+    return Response.json({ files: files.value }, { status: 200 });
+  } catch (error: any) {
+    return Response.json(
+      { message: 'Failed to fetch files', error: error?.message || 'Unknown error' },
+      { status: 500 },
+    );
+  }
+};

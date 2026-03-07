@@ -1,0 +1,29 @@
+{
+  "$schema": "https://developer.microsoft.com/en-us/json-schemas/teams/v1.16/MicrosoftTeams.schema.json",
+  "manifestVersion": "1.16",
+  "version": "1.0.0",
+  "id": "YOUR-BOT-ID",
+  "packageName": "com.ai365.bot",
+  "name": {
+    "short": "AI 365 Bot",
+    "full": "AI 365 Meeting Assistant"
+  },
+  "description": {
+    "short": "Auto-join meeting assistant",
+    "full": "Automatically joins Teams meetings, captures transcripts, summarizes them, and syncs to your AI workspace."
+  },
+  "icons": {
+    "color": "color.png",
+    "outline": "outline.png"
+  },
+  "bots": [
+    {
+      "botId": "YOUR-BOT-ID",
+      "scopes": ["team", "personal"],
+      "supportsFiles": false,
+      "isNotificationOnly": false
+    }
+  ],
+  "permissions": ["identity", "messageTeamMembers"],
+  "validDomains": ["yourdomain.com"]
+}
