@@ -2,6 +2,7 @@ import { generateDeckOutline } from '@/lib/deck';
 import { createActivityItem } from '@/lib/activity';
 import { callOpenRouterChat } from '@/lib/openrouter';
 import { PLAN_CONFIGS } from '@/lib/plans';
+import { createDriveFile } from '@/lib/microsoft';
 import {
   BrainIntent,
   classifyIntent,
@@ -68,6 +69,10 @@ export const executeBrainFlow = async (input: BrainExecutionInput) => {
   let activityLinks: Record<string, string> = {};
   let output: unknown;
 
+  const wantsWordOutput =
+    /\b(word|doc|docx|document)\b/i.test(input.query) &&
+    /\b(make|create|turn|convert|export|save)\b/i.test(input.query);
+
   switch (effectiveIntent) {
     case 'summarize_meeting':
       actionType = 'summary';
@@ -101,6 +106,27 @@ export const executeBrainFlow = async (input: BrainExecutionInput) => {
         context: 'a file',
         model: models.midModel,
       });
+
+      if (wantsWordOutput && input.microsoftAccessToken) {
+        const doc = await createDriveFile({
+          accessToken: input.microsoftAccessToken,
+          fileName: `Atlas-Document-${new Date().toISOString().slice(0, 10)}.doc`,
+          content: `<!doctype html><html><head><meta charset="utf-8"></head><body><pre style="white-space:pre-wrap;font-family:Calibri,Arial,sans-serif;font-size:12pt;">${String(
+            output,
+          )
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')}</pre></body></html>`,
+          contentType: 'text/html; charset=utf-8',
+        });
+
+        activityLinks = {
+          ...activityLinks,
+          word: doc.webUrl || activityLinks.word,
+          onedrive: doc.webUrl || '',
+        };
+        output = `${output}\n\nCreated Word file: ${doc.webUrl || 'File created'}`;
+      }
       break;
     case 'search_workspace':
       if (!input.microsoftAccessToken) {

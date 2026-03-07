@@ -43,6 +43,7 @@ export const getMicrosoftAuthUrl = (state?: string): string => {
     'Mail.Send',
     'Calendars.Read',
     'Files.Read',
+    'Files.ReadWrite',
     'Sites.Read.All',
     'OnlineMeetings.Read',
   ].join(' ');
@@ -134,6 +135,36 @@ export const getDriveItemContent = async (accessToken: string, id: string) => {
   }
 
   return response.text();
+};
+
+export const createDriveFile = async (input: {
+  accessToken: string;
+  fileName: string;
+  content: string;
+  contentType?: string;
+}) => {
+  const safeName = input.fileName.replace(/[\\/:*?"<>|]+/g, '-').trim() || 'Atlas-Document.doc';
+  const encodedName = encodeURIComponent(safeName);
+
+  const response = await fetch(
+    `${GRAPH_BASE_URL}/me/drive/root:/${encodedName}:/content`,
+    {
+      method: 'PUT',
+      headers: {
+        Authorization: `Bearer ${input.accessToken}`,
+        'Content-Type': input.contentType || 'text/plain; charset=utf-8',
+      },
+      body: input.content,
+      cache: 'no-store',
+    },
+  );
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`Failed to create drive file (${response.status}): ${text}`);
+  }
+
+  return (await response.json()) as Record<string, any>;
 };
 
 export const listOnlineMeetings = async (accessToken: string, top = 10) =>

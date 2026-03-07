@@ -273,3 +273,5 @@ Expected response:
   Next: Redeploy and run Settings diagnostics to confirm Anthropic/Gemini connectivity
 - [2026-03-07 16:03:46] [T1] [Done] Task: Added Gemini models to selector, implemented Anthropic<->Gemini fallback in direct model caller, normalized Anthropic IDs to documented stable slugs, made meetings permission errors fail-soft, and fixed weather fallback URL
   Next: Redeploy and re-test /settings diagnostics + chat/model selection + apps workspace calls
+- [2026-03-07 16:14:18] [T1] [Done] Task: Added OneDrive file-create write flow (POST /api/microsoft/files) with Files.ReadWrite scope and wired summarize_file intent to auto-create Word-compatible file links when requested
+  Next: User updates Azure app permissions (Files.ReadWrite) and reconnects Microsoft to test Word creation
