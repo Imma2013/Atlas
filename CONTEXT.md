@@ -271,3 +271,5 @@ Expected response:
   Next: Redeploy and retest Apps+Chat with workspace source
 - [2026-03-07 15:39:04] [T1] [Done] Task: Updated direct-provider model normalization and defaults to current Claude/Gemini slugs; aligned chat selector/defaults and diagnostics model mapping
   Next: Redeploy and run Settings diagnostics to confirm Anthropic/Gemini connectivity
+- [2026-03-07 16:03:46] [T1] [Done] Task: Added Gemini models to selector, implemented Anthropic<->Gemini fallback in direct model caller, normalized Anthropic IDs to documented stable slugs, made meetings permission errors fail-soft, and fixed weather fallback URL
+  Next: Redeploy and re-test /settings diagnostics + chat/model selection + apps workspace calls

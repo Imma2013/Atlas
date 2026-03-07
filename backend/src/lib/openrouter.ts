@@ -18,13 +18,13 @@ const toPlainModel = (model: string) => model.replace(/^(anthropic|gemini)\//, '
 const normalizeAnthropicModel = (model: string) => {
   const plain = toPlainModel(model);
   const mapped: Record<string, string> = {
-    'claude-haiku-4.5': 'claude-haiku-4-5',
-    'claude-sonnet-4': 'claude-sonnet-4-5',
-    'claude-sonnet-4.5': 'claude-sonnet-4-5',
-    'claude-sonnet-4.6': 'claude-sonnet-4-5',
-    'claude-opus-4': 'claude-opus-4-6',
-    'claude-opus-4.1': 'claude-opus-4-6',
-    'claude-opus-4.6': 'claude-opus-4-6',
+    'claude-haiku-4.5': 'claude-3-5-haiku-20241022',
+    'claude-sonnet-4': 'claude-sonnet-4-20250514',
+    'claude-sonnet-4.5': 'claude-sonnet-4-20250514',
+    'claude-sonnet-4.6': 'claude-sonnet-4-20250514',
+    'claude-opus-4': 'claude-opus-4-1-20250805',
+    'claude-opus-4.1': 'claude-opus-4-1-20250805',
+    'claude-opus-4.6': 'claude-opus-4-1-20250805',
   };
 
   return mapped[plain] || plain;
@@ -46,9 +46,9 @@ const resolveAliasModel = (model: string) => {
     case 'atlas-router':
       return process.env.ATLAS_ROUTER_MODEL || process.env.GEMINI_ROUTER_MODEL || 'gemini/gemini-2.5-flash-lite';
     case 'atlas-mid':
-      return process.env.ATLAS_MID_MODEL || process.env.ANTHROPIC_MID_MODEL || 'anthropic/claude-sonnet-4';
+      return process.env.ATLAS_MID_MODEL || process.env.ANTHROPIC_MID_MODEL || 'anthropic/claude-sonnet-4-20250514';
     case 'atlas-big':
-      return process.env.ATLAS_BIG_MODEL || process.env.ANTHROPIC_BIG_MODEL || 'anthropic/claude-opus-4';
+      return process.env.ATLAS_BIG_MODEL || process.env.ANTHROPIC_BIG_MODEL || 'anthropic/claude-opus-4-1-20250805';
     default:
       return model;
   }
@@ -186,31 +186,59 @@ const callGemini = async (input: OpenRouterChatOptions) => {
   return text;
 };
 
+const getGeminiFallbackFor = (model: string) => {
+  const normalized = toPlainModel(resolveAliasModel(model));
+  if (normalized.includes('opus')) return 'gemini/gemini-2.5-pro';
+  if (normalized.includes('sonnet')) return 'gemini/gemini-2.5-flash';
+  return 'gemini/gemini-2.5-flash-lite';
+};
+
+const getAnthropicFallbackFor = (model: string) => {
+  const normalized = toPlainModel(resolveAliasModel(model));
+  if (normalized.includes('pro')) return 'anthropic/claude-opus-4-1-20250805';
+  if (normalized.includes('flash')) return 'anthropic/claude-3-5-haiku-20241022';
+  return 'anthropic/claude-sonnet-4-20250514';
+};
+
 export const callOpenRouterChat = async (
   input: OpenRouterChatOptions,
 ): Promise<string> => {
   const model = resolveAliasModel(input.model);
 
-  if (model.startsWith('gemini/')) {
-    return callGemini({ ...input, model });
-  }
-
+  const providersToTry: Array<'anthropic' | 'gemini'> = [];
   if (model.startsWith('anthropic/') || model.startsWith('claude-')) {
-    const anthropicModel = model.startsWith('anthropic/')
-      ? model
-      : `anthropic/${model}`;
-    return callAnthropic({ ...input, model: anthropicModel });
+    providersToTry.push('anthropic', 'gemini');
+  } else if (model.startsWith('gemini/')) {
+    providersToTry.push('gemini', 'anthropic');
+  } else {
+    if (process.env.ANTHROPIC_API_KEY) providersToTry.push('anthropic');
+    if (process.env.GEMINI_API_KEY) providersToTry.push('gemini');
   }
 
-  if (process.env.ANTHROPIC_API_KEY) {
-    return callAnthropic({ ...input, model: `anthropic/${toPlainModel(model)}` });
-  }
+  let lastError = '';
+  for (const provider of providersToTry) {
+    try {
+      if (provider === 'anthropic') {
+        const anthropicModel =
+          model.startsWith('anthropic/') || model.startsWith('claude-')
+            ? model.startsWith('anthropic/')
+              ? model
+              : `anthropic/${model}`
+            : getAnthropicFallbackFor(model);
+        return await callAnthropic({ ...input, model: anthropicModel });
+      }
 
-  if (process.env.GEMINI_API_KEY) {
-    return callGemini({ ...input, model: `gemini/${toPlainModel(model)}` });
+      const geminiModel = model.startsWith('gemini/')
+        ? model
+        : getGeminiFallbackFor(model);
+      return await callGemini({ ...input, model: geminiModel });
+    } catch (error: any) {
+      lastError = `${provider}: ${error?.message || 'Unknown provider error'}`;
+    }
   }
 
   throw new Error(
-    'No direct model provider configured. Set ANTHROPIC_API_KEY and/or GEMINI_API_KEY.',
+    lastError ||
+      'No direct model provider configured. Set ANTHROPIC_API_KEY and/or GEMINI_API_KEY.',
   );
 };

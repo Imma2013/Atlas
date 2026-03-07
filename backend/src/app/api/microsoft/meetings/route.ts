@@ -29,6 +29,20 @@ export const GET = async (req: Request) => {
       message.includes('CallRecords.Read') || message.includes('Authorization_RequestDenied');
     const unauthorized =
       message.includes('(401)') || message.includes('InvalidAuthenticationToken');
+    const forbidden =
+      message.includes('(403)') || message.includes('Forbidden');
+
+    if (callRecordsPermissionError || forbidden) {
+      return Response.json(
+        {
+          meetings: [],
+          warning:
+            'Meetings endpoint is unavailable for this account/permission set. Other workspace features remain available.',
+          error: error?.message || 'Unknown error',
+        },
+        { status: 200 },
+      );
+    }
 
     return Response.json(
       {

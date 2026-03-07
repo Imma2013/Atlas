@@ -7,20 +7,35 @@ import { useMemo, useState } from 'react';
 import { useChat } from '@/lib/hooks/useChat';
 import { AnimatePresence, motion } from 'motion/react';
 
-const CLAUDE_MODELS = [
+const MODELS = [
+  {
+    key: 'gemini/gemini-2.5-flash-lite',
+    label: 'Gemini 2.5 Flash-Lite',
+    description: 'Cheapest routing and quick tasks',
+  },
+  {
+    key: 'gemini/gemini-2.5-flash',
+    label: 'Gemini 2.5 Flash',
+    description: 'Fast default alternative',
+  },
+  {
+    key: 'gemini/gemini-2.5-pro',
+    label: 'Gemini 2.5 Pro',
+    description: 'Deep reasoning alternative',
+  },
   {
     key: 'anthropic/claude-haiku-4.5',
-    label: 'Claude Haiku 4.5',
+    label: 'Claude Haiku',
     description: 'Routing and fast responses',
   },
   {
-    key: 'anthropic/claude-sonnet-4.6',
-    label: 'Claude Sonnet 4.6',
+    key: 'anthropic/claude-sonnet-4-20250514',
+    label: 'Claude Sonnet 4',
     description: 'Default summaries and drafting',
   },
   {
-    key: 'anthropic/claude-opus-4.6',
-    label: 'Claude Opus 4.6',
+    key: 'anthropic/claude-opus-4-1-20250805',
+    label: 'Claude Opus 4.1',
     description: 'Deep reasoning and heavy tasks',
   },
 ] as const;
@@ -38,8 +53,8 @@ const ModelSelector = () => {
 
   const filteredModels = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
-    if (!q) return CLAUDE_MODELS;
-    return CLAUDE_MODELS.filter(
+    if (!q) return MODELS;
+    return MODELS.filter(
       (model) =>
         model.label.toLowerCase().includes(q) ||
         model.key.toLowerCase().includes(q) ||
@@ -48,8 +63,8 @@ const ModelSelector = () => {
   }, [searchQuery]);
 
   const selectedModel =
-    CLAUDE_MODELS.find((model) => model.key === chatModelProvider?.key) ||
-    CLAUDE_MODELS[1];
+    MODELS.find((model) => model.key === chatModelProvider?.key) ||
+    MODELS[4];
 
   return (
     <Popover className="relative w-full max-w-[15rem] md:max-w-md lg:max-w-lg">
@@ -98,7 +113,7 @@ const ModelSelector = () => {
                     ) : (
                       <div className="flex flex-col p-2">
                         <p className="px-2 pb-2 text-[11px] uppercase tracking-wider text-black/45 dark:text-white/45">
-                          Atlas Claude Stack
+                          Atlas Model Stack
                         </p>
                         {filteredModels.map((model) => (
                           <button

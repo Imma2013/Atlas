@@ -298,7 +298,10 @@ export const POST = async (req: Request) => {
   } catch (err) {
     console.error('An error occurred while processing chat request:', err);
     return Response.json(
-      { message: 'An error occurred while processing chat request' },
+      {
+        message: 'An error occurred while processing chat request',
+        error: err instanceof Error ? err.message : 'Unknown error',
+      },
       { status: 500 },
     );
   }

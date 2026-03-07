@@ -23,12 +23,13 @@ const testAnthropic = async (apiKey: string, model: string) => {
       body: JSON.stringify({
         model: model
           .replace(/^anthropic\//, '')
-          .replace('claude-sonnet-4.6', 'claude-sonnet-4-5')
-          .replace('claude-sonnet-4.5', 'claude-sonnet-4-5')
-          .replace('claude-sonnet-4', 'claude-sonnet-4-5')
-          .replace('claude-opus-4.6', 'claude-opus-4-6')
-          .replace('claude-opus-4.1', 'claude-opus-4-6')
-          .replace('claude-opus-4', 'claude-opus-4-6'),
+          .replace('claude-sonnet-4.6', 'claude-sonnet-4-20250514')
+          .replace('claude-sonnet-4.5', 'claude-sonnet-4-20250514')
+          .replace('claude-sonnet-4', 'claude-sonnet-4-20250514')
+          .replace('claude-opus-4.6', 'claude-opus-4-1-20250805')
+          .replace('claude-opus-4.1', 'claude-opus-4-1-20250805')
+          .replace('claude-opus-4', 'claude-opus-4-1-20250805')
+          .replace('claude-haiku-4.5', 'claude-3-5-haiku-20241022'),
         max_tokens: 16,
         temperature: 0,
         messages: [{ role: 'user', content: 'reply with ok' }],
@@ -79,8 +80,8 @@ export const GET = async () => {
   const routerModel =
     process.env.ATLAS_ROUTER_MODEL ||
     (process.env.GEMINI_API_KEY ? 'gemini/gemini-2.5-flash-lite' : 'anthropic/claude-haiku-4.5');
-  const midModel = process.env.ATLAS_MID_MODEL || 'anthropic/claude-sonnet-4.6';
-  const bigModel = process.env.ATLAS_BIG_MODEL || 'anthropic/claude-opus-4.6';
+  const midModel = process.env.ATLAS_MID_MODEL || 'anthropic/claude-sonnet-4-20250514';
+  const bigModel = process.env.ATLAS_BIG_MODEL || 'anthropic/claude-opus-4-1-20250805';
 
   const anthropicKey = process.env.ANTHROPIC_API_KEY || '';
   const geminiKey = process.env.GEMINI_API_KEY || '';

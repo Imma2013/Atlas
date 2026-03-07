@@ -84,7 +84,7 @@ const checkConfig = async (
 ) => {
   const preferredChatModel =
     (typeof window !== 'undefined' && localStorage.getItem('chatModelKey')) ||
-    'anthropic/claude-sonnet-4.6';
+    'anthropic/claude-sonnet-4-20250514';
 
   setChatModelProvider({
     key: preferredChatModel,
@@ -678,7 +678,7 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
     localStorage.setItem('atlasUserId', userId);
 
     const selectedChatModel =
-      chatModelProvider?.key || localStorage.getItem('chatModelKey') || 'anthropic/claude-sonnet-4.6';
+      chatModelProvider?.key || localStorage.getItem('chatModelKey') || 'anthropic/claude-sonnet-4-20250514';
     const microsoftAccessToken =
       localStorage.getItem('atlasMicrosoftAccessToken') || '';
 

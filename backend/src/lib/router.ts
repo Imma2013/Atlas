@@ -26,11 +26,11 @@ export const defaultRouterModelConfig: RouterModelConfig = {
   midModel:
     process.env.ATLAS_MID_MODEL ||
     process.env.OPENROUTER_MID_MODEL ||
-    (hasAnthropic ? 'anthropic/claude-sonnet-4.6' : 'gemini/gemini-2.5-flash'),
+    (hasAnthropic ? 'anthropic/claude-sonnet-4-20250514' : 'gemini/gemini-2.5-flash'),
   bigModel:
     process.env.ATLAS_BIG_MODEL ||
     process.env.OPENROUTER_BIG_MODEL ||
-    (hasAnthropic ? 'anthropic/claude-opus-4.6' : 'gemini/gemini-2.5-pro'),
+    (hasAnthropic ? 'anthropic/claude-opus-4-1-20250805' : 'gemini/gemini-2.5-pro'),
 };
 
 const intentLabels: BrainIntent[] = [

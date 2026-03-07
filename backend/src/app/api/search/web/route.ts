@@ -17,7 +17,11 @@ export const POST = async (req: Request) => {
 
     const response = await searchWeb({
       query: parsed.data.query,
-      model: parsed.data.model || process.env.OPENROUTER_MID_MODEL || 'anthropic/claude-sonnet-4',
+      model:
+        parsed.data.model ||
+        process.env.ATLAS_MID_MODEL ||
+        process.env.OPENROUTER_MID_MODEL ||
+        'anthropic/claude-sonnet-4-20250514',
     });
 
     return Response.json(response, { status: 200 });

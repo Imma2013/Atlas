@@ -1,22 +1,16 @@
 export const POST = async (req: Request) => {
   try {
     const body: {
-      lat: number;
-      lng: number;
+      lat?: number;
+      lng?: number;
       measureUnit: 'Imperial' | 'Metric';
     } = await req.json();
 
-    if (!body.lat || !body.lng) {
-      return Response.json(
-        {
-          message: 'Invalid request.',
-        },
-        { status: 400 },
-      );
-    }
+    const lat = Number.isFinite(body.lat) ? body.lat : 40.7128;
+    const lng = Number.isFinite(body.lng) ? body.lng : -74.006;
 
     const res = await fetch(
-      `https://api.open-meteo.com/v1/forecast?latitude=${body.lat}&longitude=${body.lng}&current=weather_code,temperature_2m,is_day,relative_humidity_2m,wind_speed_10m&timezone=auto${
+      `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&current=weather_code,temperature_2m,is_day,relative_humidity_2m,wind_speed_10m&timezone=auto${
         body.measureUnit === 'Metric' ? '' : '&temperature_unit=fahrenheit'
       }${body.measureUnit === 'Metric' ? '' : '&wind_speed_unit=mph'}`,
     );
