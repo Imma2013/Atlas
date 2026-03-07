@@ -10,111 +10,182 @@ export type OpenRouterChatOptions = {
   maxTokens?: number;
 };
 
-const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
-const LITELLM_DEFAULT_BASE = 'http://localhost:4000';
+const GEMINI_BASE_URL = 'https://generativelanguage.googleapis.com/v1beta';
+const ANTHROPIC_BASE_URL = 'https://api.anthropic.com/v1/messages';
 
-const getModelFallbacks = (model: string): string[] => {
-  if (model === 'anthropic/claude-sonnet-4') {
-    return [
-      'anthropic/claude-sonnet-4',
-      'anthropic/claude-sonnet-4.5',
-      'anthropic/claude-sonnet-4.6',
-      'anthropic/claude-4-sonnet-20250522',
-    ];
+const toPlainModel = (model: string) => model.replace(/^(anthropic|gemini)\//, '');
+
+const resolveAliasModel = (model: string) => {
+  switch (model) {
+    case 'atlas-router':
+      return process.env.ATLAS_ROUTER_MODEL || process.env.GEMINI_ROUTER_MODEL || 'gemini/gemini-2.5-flash-lite';
+    case 'atlas-mid':
+      return process.env.ATLAS_MID_MODEL || process.env.ANTHROPIC_MID_MODEL || 'anthropic/claude-sonnet-4';
+    case 'atlas-big':
+      return process.env.ATLAS_BIG_MODEL || process.env.ANTHROPIC_BIG_MODEL || 'anthropic/claude-opus-4';
+    default:
+      return model;
   }
-
-  if (model === 'anthropic/claude-opus-4') {
-    return [
-      'anthropic/claude-opus-4',
-      'anthropic/claude-opus-4.1',
-      'anthropic/claude-opus-4.6',
-      'anthropic/claude-4-opus-20250522',
-    ];
-  }
-
-  if (model === 'anthropic/claude-haiku-4.5') {
-    return ['anthropic/claude-haiku-4.5', 'anthropic/claude-haiku-3.5'];
-  }
-
-  return [model];
 };
 
-const normalizeBaseUrl = (raw: string) => raw.replace(/\/+$/, '');
+const asAnthropicMessages = (messages: OpenRouterMessage[]) => {
+  const system = messages
+    .filter((msg) => msg.role === 'system')
+    .map((msg) => msg.content)
+    .join('\n\n')
+    .trim();
 
-const getGatewayConfig = () => {
-  const litellmBaseUrl = process.env.LITELLM_BASE_URL;
-  const litellmApiKey = process.env.LITELLM_API_KEY;
-  const openRouterApiKey = process.env.OPENROUTER_API_KEY;
+  const chatMessages = messages
+    .filter((msg) => msg.role !== 'system')
+    .map((msg) => ({
+      role: msg.role === 'assistant' ? 'assistant' : 'user',
+      content: msg.content,
+    }));
 
-  if (litellmBaseUrl) {
-    return {
-      provider: 'litellm' as const,
-      endpoint: `${normalizeBaseUrl(litellmBaseUrl || LITELLM_DEFAULT_BASE)}/chat/completions`,
-      apiKey: litellmApiKey || '',
-      extraHeaders: {} as Record<string, string>,
-    };
+  return { system, chatMessages };
+};
+
+const asGeminiPayload = (messages: OpenRouterMessage[]) => {
+  const system = messages
+    .filter((msg) => msg.role === 'system')
+    .map((msg) => msg.content)
+    .join('\n\n')
+    .trim();
+
+  const contents = messages
+    .filter((msg) => msg.role !== 'system')
+    .map((msg) => ({
+      role: msg.role === 'assistant' ? 'model' : 'user',
+      parts: [{ text: msg.content }],
+    }));
+
+  return { system, contents };
+};
+
+const callAnthropic = async (input: OpenRouterChatOptions) => {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) {
+    throw new Error('Missing ANTHROPIC_API_KEY');
   }
 
-  if (openRouterApiKey) {
-    return {
-      provider: 'openrouter' as const,
-      endpoint: OPENROUTER_URL,
-      apiKey: openRouterApiKey,
-      extraHeaders: {
-        'HTTP-Referer': process.env.OPENROUTER_SITE_URL || 'http://localhost:3000',
-        'X-Title': process.env.OPENROUTER_APP_NAME || 'Atlas Brain',
-      } as Record<string, string>,
-    };
+  const resolved = toPlainModel(resolveAliasModel(input.model));
+  const { system, chatMessages } = asAnthropicMessages(input.messages);
+
+  const response = await fetch(ANTHROPIC_BASE_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': apiKey,
+      'anthropic-version': '2023-06-01',
+    },
+    body: JSON.stringify({
+      model: resolved,
+      max_tokens: input.maxTokens ?? 800,
+      temperature: input.temperature ?? 0.2,
+      ...(system ? { system } : {}),
+      messages: chatMessages,
+    }),
+    cache: 'no-store',
+  });
+
+  if (!response.ok) {
+    throw new Error(`Anthropic request failed (${response.status}): ${await response.text()}`);
   }
 
-  throw new Error('Missing LITELLM_BASE_URL (preferred) or OPENROUTER_API_KEY');
+  const payload = (await response.json()) as {
+    content?: Array<{ type?: string; text?: string }>;
+  };
+
+  const text = (payload.content || [])
+    .filter((item) => item.type === 'text')
+    .map((item) => item.text || '')
+    .join('\n')
+    .trim();
+
+  if (!text) {
+    throw new Error('Anthropic returned an empty response');
+  }
+
+  return text;
+};
+
+const callGemini = async (input: OpenRouterChatOptions) => {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    throw new Error('Missing GEMINI_API_KEY');
+  }
+
+  const resolved = toPlainModel(resolveAliasModel(input.model));
+  const { system, contents } = asGeminiPayload(input.messages);
+
+  const endpoint = `${GEMINI_BASE_URL}/models/${resolved}:generateContent?key=${encodeURIComponent(apiKey)}`;
+
+  const response = await fetch(endpoint, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      ...(system ? { systemInstruction: { parts: [{ text: system }] } } : {}),
+      contents,
+      generationConfig: {
+        temperature: input.temperature ?? 0.2,
+        maxOutputTokens: input.maxTokens ?? 800,
+      },
+    }),
+    cache: 'no-store',
+  });
+
+  if (!response.ok) {
+    throw new Error(`Gemini request failed (${response.status}): ${await response.text()}`);
+  }
+
+  const payload = (await response.json()) as {
+    candidates?: Array<{
+      content?: {
+        parts?: Array<{ text?: string }>;
+      };
+    }>;
+  };
+
+  const text = payload.candidates?.[0]?.content?.parts
+    ?.map((part) => part.text || '')
+    .join('\n')
+    .trim();
+
+  if (!text) {
+    throw new Error('Gemini returned an empty response');
+  }
+
+  return text;
 };
 
 export const callOpenRouterChat = async (
   input: OpenRouterChatOptions,
 ): Promise<string> => {
-  const gateway = getGatewayConfig();
-  const modelCandidates = getModelFallbacks(input.model);
-  let lastError = '';
+  const model = resolveAliasModel(input.model);
 
-  for (const model of modelCandidates) {
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-      ...gateway.extraHeaders,
-    };
-    if (gateway.apiKey) {
-      headers.Authorization = `Bearer ${gateway.apiKey}`;
-    }
+  if (model.startsWith('gemini/')) {
+    return callGemini({ ...input, model });
+  }
 
-    const response = await fetch(gateway.endpoint, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({
-        model,
-        messages: input.messages,
-        temperature: input.temperature ?? 0.2,
-        max_tokens: input.maxTokens ?? 800,
-      }),
-      cache: 'no-store',
-    });
+  if (model.startsWith('anthropic/') || model.startsWith('claude-')) {
+    const anthropicModel = model.startsWith('anthropic/')
+      ? model
+      : `anthropic/${model}`;
+    return callAnthropic({ ...input, model: anthropicModel });
+  }
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      lastError = `provider=${gateway.provider} model=${model} status=${response.status} body=${errorText}`;
-      continue;
-    }
+  if (process.env.ANTHROPIC_API_KEY) {
+    return callAnthropic({ ...input, model: `anthropic/${toPlainModel(model)}` });
+  }
 
-    const json = (await response.json()) as {
-      choices?: Array<{ message?: { content?: string } }>;
-    };
-
-    const content = json.choices?.[0]?.message?.content?.trim();
-    if (content) {
-      return content;
-    }
+  if (process.env.GEMINI_API_KEY) {
+    return callGemini({ ...input, model: `gemini/${toPlainModel(model)}` });
   }
 
   throw new Error(
-    `LLM gateway request failed across model fallbacks: ${lastError}`,
+    'No direct model provider configured. Set ANTHROPIC_API_KEY and/or GEMINI_API_KEY.',
   );
 };
+

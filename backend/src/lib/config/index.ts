@@ -246,8 +246,8 @@ class ConfigManager {
       this.currentConfig.setupComplete = true;
     }
 
-    // Atlas brain mode can also run via LiteLLM gateway.
-    if (process.env.LITELLM_BASE_URL) {
+    // Atlas brain mode can run directly via provider keys.
+    if (process.env.ANTHROPIC_API_KEY || process.env.GEMINI_API_KEY) {
       this.currentConfig.setupComplete = true;
     }
 

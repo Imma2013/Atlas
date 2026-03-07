@@ -15,21 +15,22 @@ export type RouterModelConfig = {
   bigModel: string;
 };
 
-const isLiteLLMConfigured = Boolean(process.env.LITELLM_BASE_URL);
+const hasAnthropic = Boolean(process.env.ANTHROPIC_API_KEY);
+const hasGemini = Boolean(process.env.GEMINI_API_KEY);
 
 export const defaultRouterModelConfig: RouterModelConfig = {
   routerModel:
-    process.env.LITELLM_ROUTER_MODEL ||
+    process.env.ATLAS_ROUTER_MODEL ||
     process.env.OPENROUTER_ROUTER_MODEL ||
-    (isLiteLLMConfigured ? 'atlas-router' : 'anthropic/claude-haiku-4.5'),
+    (hasGemini ? 'gemini/gemini-2.5-flash-lite' : 'anthropic/claude-haiku-4.5'),
   midModel:
-    process.env.LITELLM_MID_MODEL ||
+    process.env.ATLAS_MID_MODEL ||
     process.env.OPENROUTER_MID_MODEL ||
-    (isLiteLLMConfigured ? 'atlas-mid' : 'anthropic/claude-sonnet-4'),
+    (hasAnthropic ? 'anthropic/claude-sonnet-4' : 'gemini/gemini-2.5-flash'),
   bigModel:
-    process.env.LITELLM_BIG_MODEL ||
+    process.env.ATLAS_BIG_MODEL ||
     process.env.OPENROUTER_BIG_MODEL ||
-    (isLiteLLMConfigured ? 'atlas-big' : 'anthropic/claude-opus-4'),
+    (hasAnthropic ? 'anthropic/claude-opus-4' : 'gemini/gemini-2.5-pro'),
 };
 
 const intentLabels: BrainIntent[] = [

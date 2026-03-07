@@ -265,3 +265,5 @@ Expected response:
   Next: Redeploy and verify workspace/web source behavior + app visuals
 - [2026-03-07 14:04:11] [T1] [Done] Task: Migrated LLM gateway to LiteLLM-first with OpenRouter fallback; added provider-aware diagnostics and LiteLLM model defaults/README env guide
   Next: Set Vercel LiteLLM env vars and verify in Settings diagnostics
+- [2026-03-07 14:17:54] [T1] [Done] Task: Migrated to direct Anthropic+Gemini providers (no LiteLLM/OpenRouter required), updated model routing defaults, and replaced diagnostics with direct-key connectivity tests
+  Next: User sets ANTHROPIC_API_KEY and GEMINI_API_KEY in Vercel then redeploys

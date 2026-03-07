@@ -40,27 +40,19 @@ This project is licensed under the MIT License. See [LICENSE](./LICENSE).
 - Default tasks: `anthropic/claude-sonnet-4`
 - Heavy tasks: `anthropic/claude-opus-4`
 
-## LiteLLM Gateway (Recommended)
+## Direct Provider Mode (Recommended)
 
-Atlas now supports `LiteLLM -> OpenRouter fallback`.
+Atlas can run directly on your own keys without OpenRouter:
 
-- Preferred: configure LiteLLM and route Anthropic + Gemini through it.
-- Fallback: if LiteLLM is not configured, Atlas uses OpenRouter.
+- `ANTHROPIC_API_KEY`
+- `GEMINI_API_KEY`
+- `ATLAS_ROUTER_MODEL` (optional, default uses Gemini Flash-lite when available)
+- `ATLAS_MID_MODEL` (optional, default `anthropic/claude-sonnet-4`)
+- `ATLAS_BIG_MODEL` (optional, default `anthropic/claude-opus-4`)
 
-Set these env vars in Vercel for LiteLLM:
-
-- `LITELLM_BASE_URL` (example: `https://your-litellm.example.com/v1`)
-- `LITELLM_API_KEY` (if your LiteLLM gateway requires auth)
-- `LITELLM_ROUTER_MODEL` (default: `atlas-router`)
-- `LITELLM_MID_MODEL` (default: `atlas-mid`)
-- `LITELLM_BIG_MODEL` (default: `atlas-big`)
-
-OpenRouter fallback env vars (optional):
+Optional fallback (only if you want it):
 
 - `OPENROUTER_API_KEY`
-- `OPENROUTER_ROUTER_MODEL`
-- `OPENROUTER_MID_MODEL`
-- `OPENROUTER_BIG_MODEL`
 
 ## Dev Notes
 
