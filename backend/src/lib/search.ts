@@ -1,4 +1,4 @@
-import { searchBing } from '@/lib/bing';
+import { searchSearchCans } from '@/lib/searchcans';
 import { searchWorkspace as searchMicrosoftWorkspace } from '@/lib/microsoft';
 import { callOpenRouterChat } from '@/lib/openrouter';
 
@@ -11,7 +11,7 @@ export const searchWeb = async (input: {
   query: string;
   model: string;
 }) => {
-  const results = await searchBing(input.query, 5);
+  const results = await searchSearchCans(input.query, 1);
 
   const summary = await callOpenRouterChat({
     model: input.model,

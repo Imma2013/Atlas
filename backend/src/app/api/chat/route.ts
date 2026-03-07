@@ -1,14 +1,7 @@
 import { z } from 'zod';
-import ModelRegistry from '@/lib/models/registry';
-import { ModelWithProvider } from '@/lib/models/types';
-import SearchAgent from '@/lib/agents/search';
-import SessionManager from '@/lib/session';
-import { ChatTurnMessage } from '@/lib/types';
-import { SearchSources } from '@/lib/agents/search/types';
-import db from '@/lib/db';
-import { eq } from 'drizzle-orm';
-import { chats } from '@/lib/db/schema';
-import UploadManager from '@/lib/uploads/manager';
+import type { ModelWithProvider } from '@/lib/models/types';
+import type { ChatTurnMessage } from '@/lib/types';
+import type { SearchSources } from '@/lib/agents/search/types';
 import { executeBrainFlow } from '@/lib/brain/engine';
 import { defaultRouterModelConfig } from '@/lib/router';
 
@@ -86,6 +79,14 @@ const ensureChatExists = async (input: {
   fileIds: string[];
 }) => {
   try {
+    const [{ default: db }, { eq }, { chats }, { default: UploadManager }] =
+      await Promise.all([
+        import('@/lib/db'),
+        import('drizzle-orm'),
+        import('@/lib/db/schema'),
+        import('@/lib/uploads/manager'),
+      ]);
+
     const exists = await db.query.chats
       .findFirst({
         where: eq(chats.id, input.id),
@@ -159,6 +160,13 @@ export const POST = async (req: Request) => {
 
       return Response.json(brainResponse, { status: 200 });
     }
+
+    const [{ default: ModelRegistry }, { default: SearchAgent }, { default: SessionManager }] =
+      await Promise.all([
+        import('@/lib/models/registry'),
+        import('@/lib/agents/search'),
+        import('@/lib/session'),
+      ]);
 
     const registry = new ModelRegistry();
 

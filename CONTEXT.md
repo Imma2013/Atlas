@@ -133,7 +133,7 @@ Routes:
 Lib files:
 - `/lib/openrouter.ts`
 - `/lib/microsoft.ts`
-- `/lib/bing.ts`
+- `/lib/searchcans.ts`
 - `/lib/stripe.ts`
 - `/lib/router.ts`
 - `/lib/summaries.ts`
@@ -163,9 +163,9 @@ Endpoints:
   - `GET /me/onlineMeetings`
   - `GET /communications/callRecords/{id}/sessions`
 
-### Phase 6: Web Search (Bing API)
+### Phase 6: Web Search (SearchCans API)
 Pipeline:
-1. Query Bing API
+1. Query SearchCans API
 2. Return top 3-5 results
 3. Summarize with Sonnet
 4. Provide citations
@@ -219,7 +219,7 @@ Expected response:
 - Use Opus for deck generation
 - Build Next.js backend routes: chat, microsoft, search, stripe
 - Integrate Microsoft Graph: emails, meetings, files, calendar
-- Use Bing API for web search
+- Use SearchCans API for web search
 - Add Stripe billing: Free, Starter, Pro, Business
 - Meter AI actions
 - Add Open in PowerPoint/Word/Excel links
@@ -239,3 +239,7 @@ Expected response:
   Next: T2 can wire pricing/cards UI from PLAN_CONFIGS; T6 can validate Stripe plan mapping in webhook tests
 - [2026-03-06 20:05:33] [T1] [Done] Task: Added MIT LICENSE, root README, and open-source positioning docs (including r/selfhosted draft) with one-repo frontend/backend guidance
   Next: T2 can align UI folder to /frontend and T1 can migrate active app code into /backend or /frontend as chosen
+- [2026-03-07 09:39:42] [T1] [Done] Task: Replaced Bing web search with SearchCans (SEARCHCANS_API_KEY), added lib/searchcans.ts, rewired lib/search.ts, removed explicit bing news engine pin in discover route, and updated blueprint references
+  Next: Set SEARCHCANS_API_KEY in Vercel and redeploy backend
+- [2026-03-07 09:53:49] [T1] [Done] Task: Reduced Vercel lambda bundle risk: lazy-loaded heavy chat dependencies and removed transformers provider registration from model providers index
+  Next: Redeploy backend on Vercel and verify lambda size error is resolved
