@@ -5,8 +5,11 @@ import { hashObj } from '../serverUtils';
 import { getModelProvidersUIConfigSection } from '../models/providers';
 
 class ConfigManager {
+  private readonly isVercel = process.env.VERCEL === '1';
+  private readonly runtimeDataDir =
+    process.env.DATA_DIR || (this.isVercel ? '/tmp' : process.cwd());
   configPath: string = path.join(
-    process.env.DATA_DIR || process.cwd(),
+    this.runtimeDataDir,
     '/data/config.json',
   );
   configVersion = 1;
@@ -126,19 +129,28 @@ class ConfigManager {
   }
 
   private saveConfig() {
-    fs.writeFileSync(
-      this.configPath,
-      JSON.stringify(this.currentConfig, null, 2),
-    );
-  }
-
-  private initializeConfig() {
-    const exists = fs.existsSync(this.configPath);
-    if (!exists) {
+    try {
+      fs.mkdirSync(path.dirname(this.configPath), { recursive: true });
       fs.writeFileSync(
         this.configPath,
         JSON.stringify(this.currentConfig, null, 2),
       );
+    } catch (err) {
+      // On serverless read-only filesystems, keep runtime config in memory.
+      console.warn('Config persistence unavailable, using in-memory config.');
+    }
+  }
+
+  private initializeConfig() {
+    try {
+      fs.mkdirSync(path.dirname(this.configPath), { recursive: true });
+    } catch {
+      // Ignore and continue with in-memory fallback path.
+    }
+
+    const exists = fs.existsSync(this.configPath);
+    if (!exists) {
+      this.saveConfig();
     } else {
       try {
         this.currentConfig = JSON.parse(
@@ -153,10 +165,7 @@ class ConfigManager {
           console.log(
             'Loading default config and overwriting the existing file.',
           );
-          fs.writeFileSync(
-            this.configPath,
-            JSON.stringify(this.currentConfig, null, 2),
-          );
+          this.saveConfig();
           return;
         } else {
           console.log('Unknown error reading config file:', err);
