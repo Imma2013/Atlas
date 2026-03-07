@@ -104,8 +104,17 @@ export const POST = async (req: Request) => {
       { status: 200 },
     );
   } catch (error: any) {
+    const message = String(error?.message || '');
+    const callRecordsPermissionError =
+      message.includes('CallRecords.Read') || message.includes('Authorization_RequestDenied');
+
     return Response.json(
-      { message: 'Transcript pipeline failed', error: error?.message || 'Unknown error' },
+      {
+        message: callRecordsPermissionError
+          ? 'Transcript sync via call records requires Microsoft Graph application permissions (app-only) and admin consent.'
+          : 'Transcript pipeline failed',
+        error: error?.message || 'Unknown error',
+      },
       { status: 500 },
     );
   }

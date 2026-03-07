@@ -45,7 +45,6 @@ export const getMicrosoftAuthUrl = (state?: string): string => {
     'Files.Read',
     'Sites.Read.All',
     'OnlineMeetings.Read',
-    'CallRecords.Read.All',
   ].join(' ');
 
   const params = new URLSearchParams({

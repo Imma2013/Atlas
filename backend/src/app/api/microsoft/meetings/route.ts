@@ -24,8 +24,17 @@ export const GET = async (req: Request) => {
     const meetings = await listOnlineMeetings(accessToken, 10);
     return Response.json({ meetings: meetings.value }, { status: 200 });
   } catch (error: any) {
+    const message = String(error?.message || '');
+    const callRecordsPermissionError =
+      message.includes('CallRecords.Read') || message.includes('Authorization_RequestDenied');
+
     return Response.json(
-      { message: 'Failed to fetch meetings', error: error?.message || 'Unknown error' },
+      {
+        message: callRecordsPermissionError
+          ? 'Call records require Microsoft Graph application permissions with admin consent. Online meetings are available with delegated user OAuth.'
+          : 'Failed to fetch meetings',
+        error: error?.message || 'Unknown error',
+      },
       { status: 500 },
     );
   }
