@@ -269,3 +269,5 @@ Expected response:
   Next: User sets ANTHROPIC_API_KEY and GEMINI_API_KEY in Vercel then redeploys
 - [2026-03-07 15:17:56] [T1] [Done] Task: Fixed chat 400 by relaxing userId validation; hardened Microsoft routes to return 401 for invalid tokens; made Apps data loading resilient to partial API failures; made Discover API fail-soft with empty results
   Next: Redeploy and retest Apps+Chat with workspace source
+- [2026-03-07 15:39:04] [T1] [Done] Task: Updated direct-provider model normalization and defaults to current Claude/Gemini slugs; aligned chat selector/defaults and diagnostics model mapping
+  Next: Redeploy and run Settings diagnostics to confirm Anthropic/Gemini connectivity

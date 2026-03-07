@@ -14,13 +14,13 @@ const CLAUDE_MODELS = [
     description: 'Routing and fast responses',
   },
   {
-    key: 'anthropic/claude-sonnet-4',
-    label: 'Claude Sonnet 4',
+    key: 'anthropic/claude-sonnet-4.6',
+    label: 'Claude Sonnet 4.6',
     description: 'Default summaries and drafting',
   },
   {
-    key: 'anthropic/claude-opus-4',
-    label: 'Claude Opus 4',
+    key: 'anthropic/claude-opus-4.6',
+    label: 'Claude Opus 4.6',
     description: 'Deep reasoning and heavy tasks',
   },
 ] as const;

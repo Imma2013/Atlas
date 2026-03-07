@@ -15,6 +15,32 @@ const ANTHROPIC_BASE_URL = 'https://api.anthropic.com/v1/messages';
 
 const toPlainModel = (model: string) => model.replace(/^(anthropic|gemini)\//, '');
 
+const normalizeAnthropicModel = (model: string) => {
+  const plain = toPlainModel(model);
+  const mapped: Record<string, string> = {
+    'claude-haiku-4.5': 'claude-haiku-4-5',
+    'claude-sonnet-4': 'claude-sonnet-4-5',
+    'claude-sonnet-4.5': 'claude-sonnet-4-5',
+    'claude-sonnet-4.6': 'claude-sonnet-4-5',
+    'claude-opus-4': 'claude-opus-4-6',
+    'claude-opus-4.1': 'claude-opus-4-6',
+    'claude-opus-4.6': 'claude-opus-4-6',
+  };
+
+  return mapped[plain] || plain;
+};
+
+const normalizeGeminiModel = (model: string) => {
+  const plain = toPlainModel(model);
+  const mapped: Record<string, string> = {
+    'gemini-2.5-flash-lite': 'gemini-2.5-flash-lite',
+    'gemini-2.5-flash': 'gemini-2.5-flash',
+    'gemini-2.5-pro': 'gemini-2.5-pro',
+  };
+
+  return mapped[plain] || plain;
+};
+
 const resolveAliasModel = (model: string) => {
   switch (model) {
     case 'atlas-router':
@@ -68,7 +94,7 @@ const callAnthropic = async (input: OpenRouterChatOptions) => {
     throw new Error('Missing ANTHROPIC_API_KEY');
   }
 
-  const resolved = toPlainModel(resolveAliasModel(input.model));
+  const resolved = normalizeAnthropicModel(resolveAliasModel(input.model));
   const { system, chatMessages } = asAnthropicMessages(input.messages);
 
   const response = await fetch(ANTHROPIC_BASE_URL, {
@@ -115,7 +141,7 @@ const callGemini = async (input: OpenRouterChatOptions) => {
     throw new Error('Missing GEMINI_API_KEY');
   }
 
-  const resolved = toPlainModel(resolveAliasModel(input.model));
+  const resolved = normalizeGeminiModel(resolveAliasModel(input.model));
   const { system, contents } = asGeminiPayload(input.messages);
 
   const endpoint = `${GEMINI_BASE_URL}/models/${resolved}:generateContent?key=${encodeURIComponent(apiKey)}`;
@@ -188,4 +214,3 @@ export const callOpenRouterChat = async (
     'No direct model provider configured. Set ANTHROPIC_API_KEY and/or GEMINI_API_KEY.',
   );
 };
-
