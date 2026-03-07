@@ -54,18 +54,12 @@ const AppsPage = () => {
   const [connecting, setConnecting] = useState(false);
   const [connected, setConnected] = useState(false);
   const [profile, setProfile] = useState<MicrosoftProfile | null>(null);
-  const [emails, setEmails] = useState<any[]>([]);
-  const [files, setFiles] = useState<any[]>([]);
-  const [meetings, setMeetings] = useState<any[]>([]);
 
   const refreshData = async () => {
     const token = getToken();
     if (!token) {
       setConnected(false);
       setProfile(null);
-      setEmails([]);
-      setFiles([]);
-      setMeetings([]);
       return;
     }
 
@@ -78,28 +72,6 @@ const AppsPage = () => {
       const mePayload = await meRes.json();
       setConnected(true);
       setProfile(mePayload.profile || null);
-
-      const [emailPayload, filePayload, meetingPayload] = await Promise.all([
-        fetch('/api/microsoft/emails?top=4', {
-          headers: { 'x-microsoft-access-token': token },
-        })
-          .then(async (res) => (res.ok ? res.json() : { emails: [] }))
-          .catch(() => ({ emails: [] })),
-        fetch('/api/microsoft/files', {
-          headers: { 'x-microsoft-access-token': token },
-        })
-          .then(async (res) => (res.ok ? res.json() : { files: [] }))
-          .catch(() => ({ files: [] })),
-        fetch('/api/microsoft/meetings', {
-          headers: { 'x-microsoft-access-token': token },
-        })
-          .then(async (res) => (res.ok ? res.json() : { meetings: [] }))
-          .catch(() => ({ meetings: [] })),
-      ]);
-
-      setEmails((emailPayload.emails || []).slice(0, 4));
-      setFiles((filePayload.files || []).slice(0, 4));
-      setMeetings((meetingPayload.meetings || []).slice(0, 4));
     } catch {
       localStorage.removeItem('atlasMicrosoftAccessToken');
       localStorage.removeItem('atlasMicrosoftRefreshToken');
@@ -134,9 +106,6 @@ const AppsPage = () => {
     localStorage.removeItem('atlasMicrosoftExpiresAt');
     setConnected(false);
     setProfile(null);
-    setEmails([]);
-    setFiles([]);
-    setMeetings([]);
   };
 
   return (
@@ -211,81 +180,6 @@ const AppsPage = () => {
         ))}
       </div>
 
-      {connected && (
-        <div className="mt-6 grid grid-cols-1 lg:grid-cols-3 gap-3">
-          <div className="rounded-xl border border-light-200 dark:border-dark-200 p-4 bg-light-primary dark:bg-dark-primary">
-            <p className="font-medium text-black dark:text-white">Recent Emails</p>
-            <div className="mt-2 space-y-2">
-              {emails.length === 0 ? (
-                <p className="text-sm text-black/60 dark:text-white/60">No emails loaded.</p>
-              ) : (
-                emails.map((email) => (
-                  <a
-                    key={email.id}
-                    href={email.webLink || 'https://outlook.office.com/mail/'}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="block rounded-lg border border-light-200 dark:border-dark-200 p-2 hover:border-sky-500/50"
-                  >
-                    <p className="text-sm text-black dark:text-white line-clamp-1">
-                      {email.subject || 'Untitled email'}
-                    </p>
-                    <p className="text-xs text-sky-500 mt-1">View in Outlook</p>
-                  </a>
-                ))
-              )}
-            </div>
-          </div>
-
-          <div className="rounded-xl border border-light-200 dark:border-dark-200 p-4 bg-light-primary dark:bg-dark-primary">
-            <p className="font-medium text-black dark:text-white">Recent Files</p>
-            <div className="mt-2 space-y-2">
-              {files.length === 0 ? (
-                <p className="text-sm text-black/60 dark:text-white/60">No files loaded.</p>
-              ) : (
-                files.map((file) => (
-                  <a
-                    key={file.id}
-                    href={file.webUrl || 'https://onedrive.live.com/'}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="block rounded-lg border border-light-200 dark:border-dark-200 p-2 hover:border-sky-500/50"
-                  >
-                    <p className="text-sm text-black dark:text-white line-clamp-1">
-                      {file.name || 'Untitled file'}
-                    </p>
-                    <p className="text-xs text-sky-500 mt-1">View in OneDrive</p>
-                  </a>
-                ))
-              )}
-            </div>
-          </div>
-
-          <div className="rounded-xl border border-light-200 dark:border-dark-200 p-4 bg-light-primary dark:bg-dark-primary">
-            <p className="font-medium text-black dark:text-white">Recent Meetings</p>
-            <div className="mt-2 space-y-2">
-              {meetings.length === 0 ? (
-                <p className="text-sm text-black/60 dark:text-white/60">No meetings loaded.</p>
-              ) : (
-                meetings.map((meeting) => (
-                  <a
-                    key={meeting.id}
-                    href={meeting.joinWebUrl || 'https://teams.microsoft.com'}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="block rounded-lg border border-light-200 dark:border-dark-200 p-2 hover:border-sky-500/50"
-                  >
-                    <p className="text-sm text-black dark:text-white line-clamp-1">
-                      {meeting.subject || 'Teams meeting'}
-                    </p>
-                    <p className="text-xs text-sky-500 mt-1">View in Teams</p>
-                  </a>
-                ))
-              )}
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

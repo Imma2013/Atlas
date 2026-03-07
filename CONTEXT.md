@@ -281,3 +281,5 @@ Expected response:
   Next: User: verify Azure delegated permissions and reconnect Microsoft; then test draft + OneDrive exports
 - [2026-03-07 16:46:29] [T1] [Done] Task: Added Graph-wide workspace search via /search/query with fallback to direct endpoint scans for cross-ecosystem context
   Next: User: redeploy and test workspace prompts that reference email+files+meetings in one query
+- [2026-03-07 17:32:22] [T1] [Done] Task: Removed Apps Recent Emails/Files/Meetings sections and related fetches to reduce OAuth noise and endpoint 500 spam
+  Next: User: redeploy and re-test Microsoft connect with clean Apps UI
