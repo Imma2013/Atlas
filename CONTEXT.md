@@ -279,3 +279,5 @@ Expected response:
   Next: User: add Azure Graph delegated permissions + grant consent, reconnect Microsoft, then retest /apps and chat exports
 - [2026-03-07 16:43:16] [T1] [Done] Task: Switched Microsoft mail flow to draft-only (Mail.ReadWrite scope + /api/microsoft/drafts), removed send route, and kept OneDrive multi-output generation for Word/Excel/PowerPoint
   Next: User: verify Azure delegated permissions and reconnect Microsoft; then test draft + OneDrive exports
+- [2026-03-07 16:46:29] [T1] [Done] Task: Added Graph-wide workspace search via /search/query with fallback to direct endpoint scans for cross-ecosystem context
+  Next: User: redeploy and test workspace prompts that reference email+files+meetings in one query

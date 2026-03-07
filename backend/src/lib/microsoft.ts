@@ -322,6 +322,70 @@ export const mergeTranscriptText = (segments: TranscriptSegment[]) =>
     .join('\n');
 
 export const searchWorkspace = async (accessToken: string, query: string) => {
+  try {
+    const graphSearch = await graphRequest<{
+      value?: Array<{
+        hitsContainers?: Array<{
+          hits?: Array<{ resource?: Record<string, any> }>;
+        }>;
+      }>;
+    }>('/search/query', accessToken, {
+      method: 'POST',
+      body: JSON.stringify({
+        requests: [
+          {
+            entityTypes: ['message', 'event', 'driveItem'],
+            query: { queryString: query },
+            from: 0,
+            size: 30,
+          },
+        ],
+      }),
+    });
+
+    const containers = graphSearch?.value?.[0]?.hitsContainers || [];
+    const resources = containers.flatMap((container) =>
+      (container.hits || []).map((hit) => hit.resource || {}),
+    );
+
+    const emails = resources
+      .filter((item) => item?.subject && (item?.from || item?.sender || item?.bodyPreview))
+      .slice(0, 8);
+    const events = resources
+      .filter((item) => item?.start && item?.end && item?.subject)
+      .slice(0, 8);
+    const files = resources
+      .filter((item) => item?.name && (item?.file || item?.folder || item?.webUrl))
+      .slice(0, 10);
+
+    return {
+      emails: emails.map((item) => ({
+        ...item,
+        links: {
+          outlook: item.webLink || '',
+        },
+      })),
+      files: files.map((item) => ({
+        ...item,
+        links: {
+          onedrive: item.webUrl || '',
+          word: item.webUrl || '',
+          excel: item.webUrl || '',
+          powerpoint: item.webUrl || '',
+        },
+      })),
+      events: events.map((item) => ({
+        ...item,
+        links: {
+          outlook: item.webLink || '',
+          teams: item.onlineMeetingUrl || item.joinWebUrl || '',
+        },
+      })),
+    };
+  } catch {
+    // Fall back to direct endpoint scans if Graph Search is unavailable for this account.
+  }
+
   const [emails, files, events] = await Promise.all([
     listEmails(accessToken, 5),
     listDriveRootChildren(accessToken, 10),
