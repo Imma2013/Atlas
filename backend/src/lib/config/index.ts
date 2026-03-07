@@ -235,6 +235,17 @@ class ConfigManager {
 
     this.currentConfig.modelProviders.push(...newProviders);
 
+    // If providers are already configured from environment variables,
+    // skip setup wizard to avoid onboarding loops on serverless deploys.
+    if (this.currentConfig.modelProviders.length > 0) {
+      this.currentConfig.setupComplete = true;
+    }
+
+    // Atlas brain mode can run via OpenRouter without legacy provider setup.
+    if (process.env.OPENROUTER_API_KEY) {
+      this.currentConfig.setupComplete = true;
+    }
+
     /* search section */
     this.uiConfigSections.search.forEach((f) => {
       if (f.env && !this.currentConfig.search[f.key]) {
