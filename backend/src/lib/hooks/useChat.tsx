@@ -14,7 +14,6 @@ import crypto from 'crypto';
 import { useParams, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
 import { getSuggestions } from '../actions';
-import { MinimalProvider } from '../models/types';
 import { getAutoMediaSearch } from '../config/clientRegistry';
 import { applyPatch } from 'rfc6902';
 import { Widget } from '@/components/ChatWindow';
@@ -83,8 +82,12 @@ const checkConfig = async (
   setIsConfigReady: (ready: boolean) => void,
   setHasError: (hasError: boolean) => void,
 ) => {
+  const preferredChatModel =
+    (typeof window !== 'undefined' && localStorage.getItem('chatModelKey')) ||
+    'anthropic/claude-sonnet-4';
+
   setChatModelProvider({
-    key: 'openrouter-default',
+    key: preferredChatModel,
     providerId: 'openrouter',
   });
   setEmbeddingModelProvider({
@@ -674,10 +677,44 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
         : crypto.randomBytes(16).toString('hex'));
     localStorage.setItem('atlasUserId', userId);
 
+    const selectedChatModel =
+      chatModelProvider?.key || localStorage.getItem('chatModelKey') || 'anthropic/claude-sonnet-4';
+    const microsoftAccessToken =
+      localStorage.getItem('atlasMicrosoftAccessToken') || '';
+
+    const formatOutput = (value: unknown): string => {
+      if (typeof value === 'string') {
+        return value;
+      }
+
+      if (value && typeof value === 'object') {
+        const payload = value as Record<string, any>;
+        if (payload.summary && typeof payload.summary === 'string') {
+          return payload.summary;
+        }
+        if (Array.isArray(payload.results)) {
+          const lines = payload.results
+            .slice(0, 5)
+            .map((r: any, idx: number) => {
+              const title = r?.title || r?.name || `Result ${idx + 1}`;
+              const url = r?.url || r?.link || '';
+              return `${idx + 1}. ${title}${url ? `\n${url}` : ''}`;
+            })
+            .join('\n\n');
+          return lines || JSON.stringify(payload, null, 2);
+        }
+      }
+
+      return JSON.stringify(value ?? 'No response', null, 2);
+    };
+
     const res = await fetch('/api/chat', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        ...(microsoftAccessToken
+          ? { 'x-microsoft-access-token': microsoftAccessToken }
+          : {}),
       },
       body: JSON.stringify({
         message: {
@@ -685,11 +722,23 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
           chatId: chatId!,
           content: message,
         },
+        optimizationMode,
+        sources,
+        history: chatHistory.current,
+        files: fileIds,
+        chatModel: {
+          providerId: 'openrouter',
+          key: selectedChatModel,
+        },
+        embeddingModel: {
+          providerId: 'openrouter',
+          key: 'openrouter-default',
+        },
         brainMode: true,
         userId,
         openRouterModels: {
           routerModel: 'anthropic/claude-haiku-4.5',
-          midModel: 'anthropic/claude-sonnet-4',
+          midModel: selectedChatModel,
           bigModel: 'anthropic/claude-opus-4',
         },
       }),
@@ -701,10 +750,7 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
     }
 
     const data = await res.json();
-    const outputText =
-      typeof data?.output === 'string'
-        ? data.output
-        : JSON.stringify(data?.output ?? 'No response');
+    const outputText = formatOutput(data?.output);
 
     const textBlock: Block = {
       id: crypto.randomBytes(7).toString('hex'),

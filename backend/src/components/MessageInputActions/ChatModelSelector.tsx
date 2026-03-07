@@ -1,77 +1,55 @@
 'use client';
 
-import { Cpu, Loader2, Search } from 'lucide-react';
+import { Check, Cpu, Search } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Popover, PopoverButton, PopoverPanel } from '@headlessui/react';
-import { useEffect, useMemo, useState } from 'react';
-import { MinimalProvider } from '@/lib/models/types';
+import { useMemo, useState } from 'react';
 import { useChat } from '@/lib/hooks/useChat';
 import { AnimatePresence, motion } from 'motion/react';
 
+const CLAUDE_MODELS = [
+  {
+    key: 'anthropic/claude-haiku-4.5',
+    label: 'Claude Haiku 4.5',
+    description: 'Routing and fast responses',
+  },
+  {
+    key: 'anthropic/claude-sonnet-4',
+    label: 'Claude Sonnet 4',
+    description: 'Default summaries and drafting',
+  },
+  {
+    key: 'anthropic/claude-opus-4',
+    label: 'Claude Opus 4',
+    description: 'Deep reasoning and heavy tasks',
+  },
+] as const;
+
 const ModelSelector = () => {
-  const [providers, setProviders] = useState<MinimalProvider[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
 
   const { setChatModelProvider, chatModelProvider } = useChat();
 
-  useEffect(() => {
-    const loadProviders = async () => {
-      try {
-        setIsLoading(true);
-        const res = await fetch('/api/providers');
-
-        if (!res.ok) {
-          throw new Error('Failed to fetch providers');
-        }
-
-        const data: { providers: MinimalProvider[] } = await res.json();
-        setProviders(data.providers);
-      } catch (error) {
-        console.error('Error loading providers:', error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    loadProviders();
-  }, []);
-
-  const orderedProviders = useMemo(() => {
-    if (!chatModelProvider?.providerId) return providers;
-
-    const currentProviderIndex = providers.findIndex(
-      (p) => p.id === chatModelProvider.providerId,
-    );
-
-    if (currentProviderIndex === -1) {
-      return providers;
-    }
-
-    const selectedProvider = providers[currentProviderIndex];
-    const remainingProviders = providers.filter(
-      (_, index) => index !== currentProviderIndex,
-    );
-
-    return [selectedProvider, ...remainingProviders];
-  }, [providers, chatModelProvider]);
-
-  const handleModelSelect = (providerId: string, modelKey: string) => {
-    setChatModelProvider({ providerId, key: modelKey });
-    localStorage.setItem('chatModelProviderId', providerId);
+  const handleModelSelect = (modelKey: string) => {
+    setChatModelProvider({ providerId: 'openrouter', key: modelKey });
+    localStorage.setItem('chatModelProviderId', 'openrouter');
     localStorage.setItem('chatModelKey', modelKey);
   };
 
-  const filteredProviders = orderedProviders
-    .map((provider) => ({
-      ...provider,
-      chatModels: provider.chatModels.filter(
-        (model) =>
-          model.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          provider.name.toLowerCase().includes(searchQuery.toLowerCase()),
-      ),
-    }))
-    .filter((provider) => provider.chatModels.length > 0);
+  const filteredModels = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return CLAUDE_MODELS;
+    return CLAUDE_MODELS.filter(
+      (model) =>
+        model.label.toLowerCase().includes(q) ||
+        model.key.toLowerCase().includes(q) ||
+        model.description.toLowerCase().includes(q),
+    );
+  }, [searchQuery]);
+
+  const selectedModel =
+    CLAUDE_MODELS.find((model) => model.key === chatModelProvider?.key) ||
+    CLAUDE_MODELS[1];
 
   return (
     <Popover className="relative w-full max-w-[15rem] md:max-w-md lg:max-w-lg">
@@ -113,79 +91,46 @@ const ModelSelector = () => {
                   </div>
 
                   <div className="max-h-[320px] overflow-y-auto">
-                    {isLoading ? (
-                      <div className="flex items-center justify-center py-16">
-                        <Loader2
-                          className="animate-spin text-black/40 dark:text-white/40"
-                          size={24}
-                        />
-                      </div>
-                    ) : filteredProviders.length === 0 ? (
+                    {filteredModels.length === 0 ? (
                       <div className="text-center py-16 px-4 text-black/60 dark:text-white/60 text-sm">
-                        {searchQuery
-                          ? 'No models found'
-                          : 'No chat models configured'}
+                        No models found
                       </div>
                     ) : (
-                      <div className="flex flex-col">
-                        {filteredProviders.map((provider, providerIndex) => (
-                          <div key={provider.id}>
-                            <div className="px-4 py-2.5 sticky top-0 bg-light-primary dark:bg-dark-primary border-b border-light-200/50 dark:border-dark-200/50">
-                              <p className="text-xs text-black/50 dark:text-white/50 uppercase tracking-wider">
-                                {provider.name}
+                      <div className="flex flex-col p-2">
+                        <p className="px-2 pb-2 text-[11px] uppercase tracking-wider text-black/45 dark:text-white/45">
+                          Atlas Claude Stack
+                        </p>
+                        {filteredModels.map((model) => (
+                          <button
+                            key={model.key}
+                            onClick={() => handleModelSelect(model.key)}
+                            type="button"
+                            className={cn(
+                              'px-3 py-2 flex items-center justify-between text-start duration-200 cursor-pointer transition rounded-lg group',
+                              selectedModel.key === model.key
+                                ? 'bg-light-secondary dark:bg-dark-secondary'
+                                : 'hover:bg-light-secondary dark:hover:bg-dark-secondary',
+                            )}
+                          >
+                            <div className="min-w-0 flex-1">
+                              <p
+                                className={cn(
+                                  'text-xs truncate',
+                                  selectedModel.key === model.key
+                                    ? 'text-sky-500 font-medium'
+                                    : 'text-black/80 dark:text-white/80',
+                                )}
+                              >
+                                {model.label}
+                              </p>
+                              <p className="text-[11px] text-black/50 dark:text-white/50 truncate">
+                                {model.description}
                               </p>
                             </div>
-
-                            <div className="flex flex-col px-2 py-2 space-y-0.5">
-                              {provider.chatModels.map((model) => (
-                                <button
-                                  key={model.key}
-                                  onClick={() =>
-                                    handleModelSelect(provider.id, model.key)
-                                  }
-                                  type="button"
-                                  className={cn(
-                                    'px-3 py-2 flex items-center justify-between text-start duration-200 cursor-pointer transition rounded-lg group',
-                                    chatModelProvider?.providerId ===
-                                      provider.id &&
-                                      chatModelProvider?.key === model.key
-                                      ? 'bg-light-secondary dark:bg-dark-secondary'
-                                      : 'hover:bg-light-secondary dark:hover:bg-dark-secondary',
-                                  )}
-                                >
-                                  <div className="flex items-center space-x-2.5 min-w-0 flex-1">
-                                    <Cpu
-                                      size={15}
-                                      className={cn(
-                                        'shrink-0',
-                                        chatModelProvider?.providerId ===
-                                          provider.id &&
-                                          chatModelProvider?.key === model.key
-                                          ? 'text-sky-500'
-                                          : 'text-black/50 dark:text-white/50 group-hover:text-black/70 group-hover:dark:text-white/70',
-                                      )}
-                                    />
-                                    <p
-                                      className={cn(
-                                        'text-xs truncate',
-                                        chatModelProvider?.providerId ===
-                                          provider.id &&
-                                          chatModelProvider?.key === model.key
-                                          ? 'text-sky-500 font-medium'
-                                          : 'text-black/70 dark:text-white/70 group-hover:text-black dark:group-hover:text-white',
-                                      )}
-                                    >
-                                      {model.name}
-                                    </p>
-                                  </div>
-                                </button>
-                              ))}
-                            </div>
-
-                            {providerIndex < filteredProviders.length - 1 && (
-                              <div className="h-px bg-light-200 dark:bg-dark-200" />
+                            {selectedModel.key === model.key && (
+                              <Check size={15} className="text-sky-500 shrink-0" />
                             )}
-                          </div>
+                          </button>
                         ))}
                       </div>
                     )}

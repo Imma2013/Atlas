@@ -243,3 +243,13 @@ Expected response:
   Next: Set SEARCHCANS_API_KEY in Vercel and redeploy backend
 - [2026-03-07 09:53:49] [T1] [Done] Task: Reduced Vercel lambda bundle risk: lazy-loaded heavy chat dependencies and removed transformers provider registration from model providers index
   Next: Redeploy backend on Vercel and verify lambda size error is resolved
+- [2026-03-07 10:57:33] [T1] [Done] Task: Fixed Vercel 500 by making config/db runtime use writable /tmp on serverless and adding safe persistence fallback
+  Next: Redeploy backend on Vercel and verify home page no longer returns 500
+- [2026-03-07 11:04:46] [T1] [Done] Task: Fixed onboarding loop by auto-marking setupComplete when env model providers or OPENROUTER_API_KEY exist
+  Next: Redeploy on Vercel and verify app lands on chat UI without setup wizard loop
+- [2026-03-07 11:13:29] [T1] [Done] Task: Removed setup wizard gating in app layout so deployment always opens chat UI directly
+  Next: Redeploy on Vercel and verify welcome/setup screens no longer appear
+- [2026-03-07 11:28:39] [T1] [Done] Task: Reworked app shell to Chat/Activity/Apps/Billing/Settings tabs, removed setup-plus/new button, removed models section from settings dialogue, and rewired chat client to use OpenRouter brainMode without provider setup
+  Next: Redeploy on Vercel and verify new tabs + direct chat flow
+- [2026-03-07 12:01:01] [T1] [Done] Task: Implemented dynamic Microsoft Apps flow + OAuth callback, Claude model selector (Haiku/Sonnet/Opus), brainMode chat payload fixes, web-search-first routing fallback, workspace links, and Activity view links
+  Next: Redeploy on Vercel and validate Microsoft OAuth + chat + activity in production

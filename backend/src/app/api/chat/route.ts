@@ -30,15 +30,15 @@ const bodySchema = z.object({
   message: messageSchema,
   optimizationMode: z.enum(['speed', 'balanced', 'quality'], {
     message: 'Optimization mode must be one of: speed, balanced, quality',
-  }),
+  }).optional().default('balanced'),
   sources: z.array(z.string()).optional().default([]),
   history: z
     .array(z.tuple([z.string(), z.string()]))
     .optional()
     .default([]),
   files: z.array(z.string()).optional().default([]),
-  chatModel: chatModelSchema,
-  embeddingModel: embeddingModelSchema,
+  chatModel: chatModelSchema.optional(),
+  embeddingModel: embeddingModelSchema.optional(),
   systemInstructions: z.string().nullable().optional().default(''),
   brainMode: z.boolean().optional().default(false),
   openRouterModels: z
@@ -167,6 +167,13 @@ export const POST = async (req: Request) => {
         import('@/lib/agents/search'),
         import('@/lib/session'),
       ]);
+
+    if (!body.chatModel || !body.embeddingModel) {
+      return Response.json(
+        { message: 'chatModel and embeddingModel are required when brainMode is disabled' },
+        { status: 400 },
+      );
+    }
 
     const registry = new ModelRegistry();
 

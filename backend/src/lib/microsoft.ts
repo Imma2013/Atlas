@@ -26,7 +26,9 @@ const graphRequest = async <T>(
 export const getMicrosoftAuthUrl = (state?: string): string => {
   const tenant = process.env.MICROSOFT_TENANT_ID || 'common';
   const clientId = process.env.MICROSOFT_CLIENT_ID;
-  const redirectUri = process.env.MICROSOFT_REDIRECT_URI;
+  const redirectUri =
+    process.env.MICROSOFT_REDIRECT_URI ||
+    `${process.env.APP_URL || 'http://localhost:3000'}/microsoft/callback`;
 
   if (!clientId || !redirectUri) {
     throw new Error('Missing Microsoft OAuth env vars');
@@ -62,7 +64,9 @@ export const exchangeMicrosoftCode = async (code: string) => {
   const tenant = process.env.MICROSOFT_TENANT_ID || 'common';
   const clientId = process.env.MICROSOFT_CLIENT_ID;
   const clientSecret = process.env.MICROSOFT_CLIENT_SECRET;
-  const redirectUri = process.env.MICROSOFT_REDIRECT_URI;
+  const redirectUri =
+    process.env.MICROSOFT_REDIRECT_URI ||
+    `${process.env.APP_URL || 'http://localhost:3000'}/microsoft/callback`;
 
   if (!clientId || !clientSecret || !redirectUri) {
     throw new Error('Missing Microsoft OAuth env vars');
@@ -98,7 +102,7 @@ export const exchangeMicrosoftCode = async (code: string) => {
 
 export const listEmails = async (accessToken: string, top = 10) =>
   graphRequest<{ value: Array<Record<string, any>> }>(
-    `/me/messages?$top=${top}&$orderby=receivedDateTime desc`,
+    `/me/messages?$top=${top}&$orderby=receivedDateTime desc&$select=id,subject,bodyPreview,receivedDateTime,webLink,from`,
     accessToken,
   );
 
@@ -107,13 +111,13 @@ export const getEmailById = async (accessToken: string, id: string) =>
 
 export const listEvents = async (accessToken: string, top = 10) =>
   graphRequest<{ value: Array<Record<string, any>> }>(
-    `/me/events?$top=${top}&$orderby=start/dateTime`,
+    `/me/events?$top=${top}&$orderby=start/dateTime&$select=id,subject,webLink,start,end,onlineMeetingUrl`,
     accessToken,
   );
 
 export const listDriveRootChildren = async (accessToken: string, top = 25) =>
   graphRequest<{ value: Array<Record<string, any>> }>(
-    `/me/drive/root/children?$top=${top}`,
+    `/me/drive/root/children?$top=${top}&$select=id,name,webUrl,lastModifiedDateTime,file,folder`,
     accessToken,
   );
 
@@ -138,6 +142,9 @@ export const listOnlineMeetings = async (accessToken: string, top = 10) =>
     `/me/onlineMeetings?$top=${top}`,
     accessToken,
   );
+
+export const getCurrentUser = async (accessToken: string) =>
+  graphRequest<Record<string, any>>('/me?$select=id,displayName,userPrincipalName,mail', accessToken);
 
 export const getCallRecordSessions = async (accessToken: string, id: string) =>
   graphRequest<{ value: Array<Record<string, any>> }>(
@@ -212,8 +219,27 @@ export const searchWorkspace = async (accessToken: string, query: string) => {
   );
 
   return {
-    emails: filteredEmails,
-    files: filteredFiles,
-    events: filteredEvents,
+    emails: filteredEmails.map((item) => ({
+      ...item,
+      links: {
+        outlook: item.webLink || '',
+      },
+    })),
+    files: filteredFiles.map((item) => ({
+      ...item,
+      links: {
+        onedrive: item.webUrl || '',
+        word: item.webUrl || '',
+        excel: item.webUrl || '',
+        powerpoint: item.webUrl || '',
+      },
+    })),
+    events: filteredEvents.map((item) => ({
+      ...item,
+      links: {
+        outlook: item.webLink || '',
+        teams: item.onlineMeetingUrl || '',
+      },
+    })),
   };
 };

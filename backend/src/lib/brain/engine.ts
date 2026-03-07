@@ -51,6 +51,7 @@ export const executeBrainFlow = async (input: BrainExecutionInput) => {
   let actionType: AIActionType = 'summary';
   let modelUsed = models.midModel;
   let activityType: 'meeting' | 'email' | 'file' | 'deck' | 'spreadsheet' | 'web_search' = 'web_search';
+  let activityLinks: Record<string, string> = {};
   let output: unknown;
 
   switch (intent) {
@@ -58,6 +59,7 @@ export const executeBrainFlow = async (input: BrainExecutionInput) => {
       actionType = 'summary';
       modelUsed = models.midModel;
       activityType = 'meeting';
+      activityLinks = { teams: 'https://teams.microsoft.com' };
       output = await summarizeText({
         content: input.query,
         context: 'a meeting transcript or notes',
@@ -68,6 +70,7 @@ export const executeBrainFlow = async (input: BrainExecutionInput) => {
       actionType = 'summary';
       modelUsed = models.midModel;
       activityType = 'email';
+      activityLinks = { outlook: 'https://outlook.office.com/mail/' };
       output = await summarizeText({
         content: input.query,
         context: 'an email thread',
@@ -78,6 +81,7 @@ export const executeBrainFlow = async (input: BrainExecutionInput) => {
       actionType = 'summary';
       modelUsed = models.midModel;
       activityType = 'file';
+      activityLinks = { word: 'https://www.office.com/launch/word' };
       output = await summarizeText({
         content: input.query,
         context: 'a file',
@@ -99,6 +103,17 @@ export const executeBrainFlow = async (input: BrainExecutionInput) => {
         accessToken: input.microsoftAccessToken,
         query: input.query,
       });
+      {
+        const workspace = output as any;
+        activityLinks = {
+          outlook:
+            workspace?.emails?.[0]?.links?.outlook || 'https://outlook.office.com/mail/',
+          onedrive:
+            workspace?.files?.[0]?.links?.onedrive || 'https://onedrive.live.com/',
+          teams:
+            workspace?.events?.[0]?.links?.teams || 'https://teams.microsoft.com',
+        };
+      }
       break;
     case 'search_web':
       actionType = 'search';
@@ -110,6 +125,7 @@ export const executeBrainFlow = async (input: BrainExecutionInput) => {
       actionType = 'draft';
       modelUsed = models.midModel;
       activityType = 'email';
+      activityLinks = { outlook: 'https://outlook.office.com/mail/' };
       output = await callOpenRouterChat({
         model: models.midModel,
         temperature: 0.3,
@@ -123,6 +139,7 @@ export const executeBrainFlow = async (input: BrainExecutionInput) => {
       actionType = 'deck';
       modelUsed = models.bigModel;
       activityType = 'deck';
+      activityLinks = { powerpoint: 'https://www.office.com/launch/powerpoint' };
       output = await generateDeckOutline({
         topic: input.query,
         source: input.query,
@@ -133,6 +150,7 @@ export const executeBrainFlow = async (input: BrainExecutionInput) => {
       actionType = 'analysis';
       modelUsed = models.bigModel;
       activityType = 'spreadsheet';
+      activityLinks = { excel: 'https://www.office.com/launch/excel' };
       output = await callOpenRouterChat({
         model: models.bigModel,
         temperature: 0.1,
@@ -147,11 +165,11 @@ export const executeBrainFlow = async (input: BrainExecutionInput) => {
       });
       break;
     default:
-      return {
-        intent: 'unknown' as BrainIntent,
-        output:
-          'I need clarification. Do you want meeting/email/file summary, workspace search, web search, email draft, deck generation, or spreadsheet analysis?',
-      };
+      actionType = 'search';
+      modelUsed = models.midModel;
+      activityType = 'web_search';
+      output = await searchWeb({ query: input.query, model: models.midModel });
+      break;
   }
 
   await Promise.all([
@@ -166,6 +184,7 @@ export const executeBrainFlow = async (input: BrainExecutionInput) => {
       sourceId: crypto.randomUUID(),
       title: input.query.slice(0, 120),
       summary: typeof output === 'string' ? output : JSON.stringify(output),
+      links: activityLinks,
       modelUsed,
     }),
   ]);

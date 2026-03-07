@@ -56,10 +56,18 @@ const keywordFallback = (query: string): BrainIntent => {
   if (q.includes('deck') || q.includes('slide')) return 'generate_deck';
   if (q.includes('spreadsheet') || q.includes('excel')) return 'analyze_spreadsheet';
   if (q.includes('file') || q.includes('document') || q.includes('onedrive')) return 'summarize_file';
-  if (q.includes('workspace') || q.includes('outlook') || q.includes('teams')) return 'search_workspace';
-  if (q.includes('web') || q.includes('internet') || q.includes('news')) return 'search_web';
+  if (
+    q.includes('workspace') ||
+    q.includes('outlook') ||
+    q.includes('teams') ||
+    q.includes('my email') ||
+    q.includes('my files') ||
+    q.includes('my calendar')
+  ) {
+    return 'search_workspace';
+  }
 
-  return 'unknown';
+  return 'search_web';
 };
 
 import { callOpenRouterChat } from '@/lib/openrouter';
@@ -83,7 +91,11 @@ export const classifyIntent = async (
       .trim()
       .toLowerCase() as BrainIntent;
 
-    return intentLabels.includes(label) ? label : keywordFallback(query);
+    if (intentLabels.includes(label) && label !== 'unknown') {
+      return label;
+    }
+
+    return keywordFallback(query);
   } catch {
     return keywordFallback(query);
   }
