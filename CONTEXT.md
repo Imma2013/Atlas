@@ -253,3 +253,9 @@ Expected response:
   Next: Redeploy on Vercel and verify new tabs + direct chat flow
 - [2026-03-07 12:01:01] [T1] [Done] Task: Implemented dynamic Microsoft Apps flow + OAuth callback, Claude model selector (Haiku/Sonnet/Opus), brainMode chat payload fixes, web-search-first routing fallback, workspace links, and Activity view links
   Next: Redeploy on Vercel and validate Microsoft OAuth + chat + activity in production
+- [2026-03-07 12:02:11] [T1] [Done] Task: Pushed commit 116694c: Claude model selector + Microsoft OAuth callback/apps integration + web-first routing/activity links
+  Next: Redeploy Vercel and validate OAuth redirect URI + Graph scopes
+- [2026-03-07 12:15:54] [T1] [Done] Task: Fixed Microsoft OAuth failure: removed delegated CallRecords.Read.All scope; added clearer call-record permission error messaging
+  Next: Redeploy and test Microsoft Connect in Apps
+- [2026-03-07 12:51:02] [T1] [Done] Task: Added /api/debug/integrations endpoint and Settings diagnostics panel for Microsoft redirect/OpenRouter Claude model checks
+  Next: User runs diagnostics and updates Azure redirect URI + env if mismatch
