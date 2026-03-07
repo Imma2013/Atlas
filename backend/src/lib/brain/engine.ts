@@ -11,12 +11,14 @@ import {
 import { searchWeb, searchWorkspace } from '@/lib/search';
 import { summarizeText } from '@/lib/summaries';
 import { AIActionType, assertUsageWithinPlan, recordAIUsage } from '@/lib/usage';
+import { GROUNDED_SYSTEM_RULES } from '@/lib/prompts/grounding';
 
 export type BrainExecutionInput = {
   query: string;
   microsoftAccessToken?: string;
   userId?: string;
   models?: Partial<RouterModelConfig>;
+  sources?: string[];
 };
 
 const mergeModels = (models?: Partial<RouterModelConfig>): RouterModelConfig => ({
@@ -26,6 +28,10 @@ const mergeModels = (models?: Partial<RouterModelConfig>): RouterModelConfig => 
 
 export const executeBrainFlow = async (input: BrainExecutionInput) => {
   const models = mergeModels(input.models);
+  const selectedSources = new Set(input.sources || []);
+  const webEnabled = selectedSources.has('web');
+  const workspaceEnabled =
+    selectedSources.has('workspace') || selectedSources.size === 0;
   const usageCheck = await assertUsageWithinPlan(input.userId);
 
   if (!usageCheck.allowed) {
@@ -37,9 +43,17 @@ export const executeBrainFlow = async (input: BrainExecutionInput) => {
   }
 
   const intent = await classifyIntent(input.query, models.routerModel);
+  const effectiveIntent: BrainIntent =
+    intent === 'search_web' && !webEnabled
+      ? 'search_workspace'
+      : intent === 'unknown' && workspaceEnabled
+        ? 'search_workspace'
+        : intent === 'unknown' && webEnabled
+          ? 'search_web'
+          : intent;
   const tierConfig = PLAN_CONFIGS[usageCheck.tier];
   const requiresBigModel =
-    intent === 'generate_deck' || intent === 'analyze_spreadsheet';
+    effectiveIntent === 'generate_deck' || effectiveIntent === 'analyze_spreadsheet';
 
   if (requiresBigModel && !tierConfig.allowBigModel) {
     return {
@@ -54,7 +68,7 @@ export const executeBrainFlow = async (input: BrainExecutionInput) => {
   let activityLinks: Record<string, string> = {};
   let output: unknown;
 
-  switch (intent) {
+  switch (effectiveIntent) {
     case 'summarize_meeting':
       actionType = 'summary';
       modelUsed = models.midModel;
@@ -91,8 +105,10 @@ export const executeBrainFlow = async (input: BrainExecutionInput) => {
     case 'search_workspace':
       if (!input.microsoftAccessToken) {
         return {
-          intent,
-          output: 'Microsoft access token is required for workspace search.',
+          intent: effectiveIntent,
+          output: webEnabled
+            ? 'Microsoft is not connected. Connect Apps for workspace answers or disable workspace and use web.'
+            : 'Microsoft access token is required for workspace search. Connect Microsoft in Apps.',
           requiresAuth: true,
         };
       }
@@ -116,6 +132,13 @@ export const executeBrainFlow = async (input: BrainExecutionInput) => {
       }
       break;
     case 'search_web':
+      if (!webEnabled) {
+        return {
+          intent: effectiveIntent,
+          output:
+            'Web search is currently off. Enable the Web source toggle to include internet results.',
+        };
+      }
       actionType = 'search';
       modelUsed = models.midModel;
       activityType = 'web_search';
@@ -157,19 +180,18 @@ export const executeBrainFlow = async (input: BrainExecutionInput) => {
         messages: [
           {
             role: 'system',
-            content:
-              'Analyze spreadsheet context and return key metrics, trends, risks, and recommended actions.',
+            content: `${GROUNDED_SYSTEM_RULES}\nAnalyze spreadsheet context and return key metrics, trends, risks, and recommended actions.`,
           },
           { role: 'user', content: input.query },
         ],
       });
       break;
     default:
-      actionType = 'search';
-      modelUsed = models.midModel;
-      activityType = 'web_search';
-      output = await searchWeb({ query: input.query, model: models.midModel });
-      break;
+      return {
+        intent: 'unknown',
+        output:
+          'I need a clearer task. Try: summarize email, summarize file, search workspace, or enable Web and search web.',
+      };
   }
 
   await Promise.all([
@@ -190,7 +212,7 @@ export const executeBrainFlow = async (input: BrainExecutionInput) => {
   ]);
 
   return {
-    intent,
+    intent: effectiveIntent,
     output,
     modelUsed,
   };

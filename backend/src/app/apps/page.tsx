@@ -13,26 +13,31 @@ const appTiles = [
     name: 'PowerPoint',
     description: 'Open generated deck outlines.',
     href: 'https://www.office.com/launch/powerpoint',
+    logo: '/apps/powerpoint.svg',
   },
   {
     name: 'Word',
     description: 'Open summaries and drafts.',
     href: 'https://www.office.com/launch/word',
+    logo: '/apps/word.svg',
   },
   {
     name: 'Excel',
     description: 'Open spreadsheet analyses.',
     href: 'https://www.office.com/launch/excel',
+    logo: '/apps/excel.svg',
   },
   {
     name: 'Outlook',
     description: 'Review and send draft emails.',
     href: 'https://outlook.office.com/mail/',
+    logo: '/apps/outlook.svg',
   },
   {
     name: 'Teams',
     description: 'Review meeting transcript summaries.',
     href: 'https://teams.microsoft.com',
+    logo: '/apps/teams.svg',
   },
 ];
 
@@ -172,8 +177,13 @@ const AppsPage = () => {
             rel="noreferrer"
             className="rounded-xl border border-light-200 dark:border-dark-200 p-4 bg-light-primary dark:bg-dark-primary block hover:border-sky-500/50 transition-colors"
           >
-            <p className="font-medium text-black dark:text-white">{app.name}</p>
-            <p className="mt-1 text-sm text-black/70 dark:text-white/70">{app.description}</p>
+            <div className="flex items-center gap-3">
+              <img src={app.logo} alt={`${app.name} logo`} className="h-10 w-10 rounded-md" />
+              <div>
+                <p className="font-medium text-black dark:text-white">{app.name}</p>
+                <p className="mt-1 text-sm text-black/70 dark:text-white/70">{app.description}</p>
+              </div>
+            </div>
           </a>
         ))}
       </div>

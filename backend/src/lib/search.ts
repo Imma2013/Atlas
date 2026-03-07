@@ -1,6 +1,7 @@
 import { searchSearchCans } from '@/lib/searchcans';
 import { searchWorkspace as searchMicrosoftWorkspace } from '@/lib/microsoft';
 import { callOpenRouterChat } from '@/lib/openrouter';
+import { GROUNDED_SYSTEM_RULES } from '@/lib/prompts/grounding';
 
 export const searchWorkspace = async (input: {
   accessToken: string;
@@ -20,8 +21,7 @@ export const searchWeb = async (input: {
     messages: [
       {
         role: 'system',
-        content:
-          'Summarize the search results and include citations as bullet points with source URLs.',
+        content: `${GROUNDED_SYSTEM_RULES}\nSummarize the search results and include citations as bullet points with source URLs.`,
       },
       {
         role: 'user',

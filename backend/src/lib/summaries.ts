@@ -1,4 +1,5 @@
 import { callOpenRouterChat } from '@/lib/openrouter';
+import { GROUNDED_SYSTEM_RULES } from '@/lib/prompts/grounding';
 
 export const summarizeText = async (input: {
   content: string;
@@ -12,7 +13,7 @@ export const summarizeText = async (input: {
     messages: [
       {
         role: 'system',
-        content: `You summarize ${input.context} clearly with concise action-oriented output.`,
+        content: `${GROUNDED_SYSTEM_RULES}\nYou summarize ${input.context} clearly with concise action-oriented output.`,
       },
       {
         role: 'user',

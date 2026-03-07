@@ -147,6 +147,7 @@ export const POST = async (req: Request) => {
         query: message.content,
         userId,
         microsoftAccessToken: microsoftAccessToken || undefined,
+        sources: body.sources,
         models: {
           routerModel:
             body.openRouterModels?.routerModel ||

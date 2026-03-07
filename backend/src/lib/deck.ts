@@ -1,4 +1,5 @@
 import { callOpenRouterChat } from '@/lib/openrouter';
+import { GROUNDED_SYSTEM_RULES } from '@/lib/prompts/grounding';
 
 export const generateDeckOutline = async (input: {
   topic: string;
@@ -12,8 +13,7 @@ export const generateDeckOutline = async (input: {
     messages: [
       {
         role: 'system',
-        content:
-          'Create a practical 5-slide outline with slide title, key points, and speaker notes.',
+        content: `${GROUNDED_SYSTEM_RULES}\nCreate a practical 5-slide outline with slide title, key points, and speaker notes.`,
       },
       {
         role: 'user',

@@ -14,6 +14,11 @@ import { AnimatePresence, motion } from 'motion/react';
 
 const sourcesList = [
   {
+    name: 'Workspace',
+    key: 'workspace',
+    icon: <span className="text-[14px] leading-none">🏢</span>,
+  },
+  {
     name: 'Web',
     key: 'web',
     icon: <GlobeIcon className="h-[16px] w-auto" />,

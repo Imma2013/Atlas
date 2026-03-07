@@ -259,3 +259,7 @@ Expected response:
   Next: Redeploy and test Microsoft Connect in Apps
 - [2026-03-07 12:51:02] [T1] [Done] Task: Added /api/debug/integrations endpoint and Settings diagnostics panel for Microsoft redirect/OpenRouter Claude model checks
   Next: User runs diagnostics and updates Azure redirect URI + env if mismatch
+- [2026-03-07 12:55:05] [T1] [Done] Task: Verified OpenRouter Claude model IDs against live models feed and added fallback retries for Sonnet/Opus/Haiku versioned slugs
+  Next: Redeploy and run Settings > Integration Diagnostics
+- [2026-03-07 13:45:41] [T1] [Done] Task: Added grounded anti-hallucination system rules, workspace-first source mode with manual web toggle behavior, and visual app logos/cards in Apps tab
+  Next: Redeploy and verify workspace/web source behavior + app visuals
