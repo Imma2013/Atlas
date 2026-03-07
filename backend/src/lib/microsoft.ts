@@ -109,6 +109,30 @@ export const listEmails = async (accessToken: string, top = 10) =>
 export const getEmailById = async (accessToken: string, id: string) =>
   graphRequest<Record<string, any>>(`/me/messages/${id}`, accessToken);
 
+export const sendEmail = async (input: {
+  accessToken: string;
+  to: string[];
+  subject: string;
+  body: string;
+  contentType?: 'Text' | 'HTML';
+}) =>
+  graphRequest<void>('/me/sendMail', input.accessToken, {
+    method: 'POST',
+    body: JSON.stringify({
+      message: {
+        subject: input.subject,
+        body: {
+          contentType: input.contentType || 'Text',
+          content: input.body,
+        },
+        toRecipients: input.to.map((address) => ({
+          emailAddress: { address },
+        })),
+      },
+      saveToSentItems: true,
+    }),
+  });
+
 export const listEvents = async (accessToken: string, top = 10) =>
   graphRequest<{ value: Array<Record<string, any>> }>(
     `/me/events?$top=${top}&$orderby=start/dateTime&$select=id,subject,webLink,start,end,onlineMeetingUrl`,
@@ -119,6 +143,16 @@ export const listDriveRootChildren = async (accessToken: string, top = 25) =>
   graphRequest<{ value: Array<Record<string, any>> }>(
     `/me/drive/root/children?$top=${top}&$select=id,name,webUrl,lastModifiedDateTime,file,folder`,
     accessToken,
+  );
+
+export const listDriveItemChildren = async (input: {
+  accessToken: string;
+  itemId: string;
+  top?: number;
+}) =>
+  graphRequest<{ value: Array<Record<string, any>> }>(
+    `/me/drive/items/${input.itemId}/children?$top=${input.top || 25}&$select=id,name,webUrl,lastModifiedDateTime,file,folder`,
+    input.accessToken,
   );
 
 export const getDriveItemContent = async (accessToken: string, id: string) => {
@@ -142,12 +176,16 @@ export const createDriveFile = async (input: {
   fileName: string;
   content: string;
   contentType?: string;
+  parentItemId?: string;
 }) => {
   const safeName = input.fileName.replace(/[\\/:*?"<>|]+/g, '-').trim() || 'Atlas-Document.doc';
-  const encodedName = encodeURIComponent(safeName);
+  const encodedName = encodeURIComponent(safeName).replace(/%2F/g, '-');
+  const targetUrl = input.parentItemId
+    ? `${GRAPH_BASE_URL}/me/drive/items/${input.parentItemId}:/${encodedName}:/content`
+    : `${GRAPH_BASE_URL}/me/drive/root:/${encodedName}:/content`;
 
   const response = await fetch(
-    `${GRAPH_BASE_URL}/me/drive/root:/${encodedName}:/content`,
+    targetUrl,
     {
       method: 'PUT',
       headers: {
@@ -162,6 +200,65 @@ export const createDriveFile = async (input: {
   if (!response.ok) {
     const text = await response.text();
     throw new Error(`Failed to create drive file (${response.status}): ${text}`);
+  }
+
+  return (await response.json()) as Record<string, any>;
+};
+
+export const updateDriveFileContent = async (input: {
+  accessToken: string;
+  itemId: string;
+  content: string;
+  contentType?: string;
+}) => {
+  const response = await fetch(
+    `${GRAPH_BASE_URL}/me/drive/items/${input.itemId}/content`,
+    {
+      method: 'PUT',
+      headers: {
+        Authorization: `Bearer ${input.accessToken}`,
+        'Content-Type': input.contentType || 'text/plain; charset=utf-8',
+      },
+      body: input.content,
+      cache: 'no-store',
+    },
+  );
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`Failed to update drive file (${response.status}): ${text}`);
+  }
+
+  return (await response.json()) as Record<string, any>;
+};
+
+export const createDriveFolder = async (input: {
+  accessToken: string;
+  folderName: string;
+  parentItemId?: string;
+}) => {
+  const response = await fetch(
+    input.parentItemId
+      ? `${GRAPH_BASE_URL}/me/drive/items/${input.parentItemId}/children`
+      : `${GRAPH_BASE_URL}/me/drive/root/children`,
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${input.accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        name: input.folderName,
+        folder: {},
+        '@microsoft.graph.conflictBehavior': 'rename',
+      }),
+      cache: 'no-store',
+    },
+  );
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`Failed to create drive folder (${response.status}): ${text}`);
   }
 
   return (await response.json()) as Record<string, any>;

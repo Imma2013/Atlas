@@ -69,9 +69,13 @@ export const executeBrainFlow = async (input: BrainExecutionInput) => {
   let activityLinks: Record<string, string> = {};
   let output: unknown;
 
+  const wantsFileOutput = /\b(make|create|turn|convert|export|save)\b/i.test(input.query);
   const wantsWordOutput =
-    /\b(word|doc|docx|document)\b/i.test(input.query) &&
-    /\b(make|create|turn|convert|export|save)\b/i.test(input.query);
+    wantsFileOutput && /\b(word|doc|docx|document)\b/i.test(input.query);
+  const wantsExcelOutput =
+    wantsFileOutput && /\b(excel|spreadsheet|csv)\b/i.test(input.query);
+  const wantsPowerPointOutput =
+    wantsFileOutput && /\b(powerpoint|ppt|slides?|deck)\b/i.test(input.query);
 
   switch (effectiveIntent) {
     case 'summarize_meeting':
@@ -107,26 +111,6 @@ export const executeBrainFlow = async (input: BrainExecutionInput) => {
         model: models.midModel,
       });
 
-      if (wantsWordOutput && input.microsoftAccessToken) {
-        const doc = await createDriveFile({
-          accessToken: input.microsoftAccessToken,
-          fileName: `Atlas-Document-${new Date().toISOString().slice(0, 10)}.doc`,
-          content: `<!doctype html><html><head><meta charset="utf-8"></head><body><pre style="white-space:pre-wrap;font-family:Calibri,Arial,sans-serif;font-size:12pt;">${String(
-            output,
-          )
-            .replace(/&/g, '&amp;')
-            .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;')}</pre></body></html>`,
-          contentType: 'text/html; charset=utf-8',
-        });
-
-        activityLinks = {
-          ...activityLinks,
-          word: doc.webUrl || activityLinks.word,
-          onedrive: doc.webUrl || '',
-        };
-        output = `${output}\n\nCreated Word file: ${doc.webUrl || 'File created'}`;
-      }
       break;
     case 'search_workspace':
       if (!input.microsoftAccessToken) {
@@ -218,6 +202,63 @@ export const executeBrainFlow = async (input: BrainExecutionInput) => {
         output:
           'I need a clearer task. Try: summarize email, summarize file, search workspace, or enable Web and search web.',
       };
+  }
+
+  if (input.microsoftAccessToken && (wantsWordOutput || wantsExcelOutput || wantsPowerPointOutput)) {
+    const stampedDate = new Date().toISOString().slice(0, 10);
+    const renderedOutput = typeof output === 'string' ? output : JSON.stringify(output, null, 2);
+    const exportedLinks: string[] = [];
+
+    if (wantsWordOutput) {
+      const doc = await createDriveFile({
+        accessToken: input.microsoftAccessToken,
+        fileName: `Atlas-Document-${stampedDate}.doc`,
+        content: `<!doctype html><html><head><meta charset="utf-8"></head><body><pre style="white-space:pre-wrap;font-family:Calibri,Arial,sans-serif;font-size:12pt;">${renderedOutput
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')}</pre></body></html>`,
+        contentType: 'text/html; charset=utf-8',
+      });
+      if (doc.webUrl) {
+        exportedLinks.push(`Word: ${doc.webUrl}`);
+        activityLinks.word = doc.webUrl;
+        activityLinks.onedrive = doc.webUrl;
+      }
+    }
+
+    if (wantsExcelOutput) {
+      const excelCsv = `Section,Details\n"Summary","${renderedOutput.replace(/"/g, '""').replace(/\n/g, ' ')}"`;
+      const csv = await createDriveFile({
+        accessToken: input.microsoftAccessToken,
+        fileName: `Atlas-Spreadsheet-${stampedDate}.csv`,
+        content: excelCsv,
+        contentType: 'text/csv; charset=utf-8',
+      });
+      if (csv.webUrl) {
+        exportedLinks.push(`Excel (CSV): ${csv.webUrl}`);
+        activityLinks.excel = csv.webUrl;
+        activityLinks.onedrive = activityLinks.onedrive || csv.webUrl;
+      }
+    }
+
+    if (wantsPowerPointOutput) {
+      const deckOutline = `# Atlas Deck Outline\n\n${renderedOutput}`;
+      const deck = await createDriveFile({
+        accessToken: input.microsoftAccessToken,
+        fileName: `Atlas-Deck-Outline-${stampedDate}.md`,
+        content: deckOutline,
+        contentType: 'text/markdown; charset=utf-8',
+      });
+      if (deck.webUrl) {
+        exportedLinks.push(`PowerPoint outline: ${deck.webUrl}`);
+        activityLinks.powerpoint = deck.webUrl;
+        activityLinks.onedrive = activityLinks.onedrive || deck.webUrl;
+      }
+    }
+
+    if (exportedLinks.length > 0) {
+      output = `${renderedOutput}\n\nCreated files:\n${exportedLinks.join('\n')}`;
+    }
   }
 
   await Promise.all([

@@ -39,6 +39,12 @@ const appTiles = [
     href: 'https://teams.microsoft.com',
     logo: '/apps/teams.svg',
   },
+  {
+    name: 'OneDrive',
+    description: 'Browse and open generated files.',
+    href: 'https://onedrive.live.com/',
+    logo: '/apps/onedrive.svg',
+  },
 ];
 
 const getToken = () =>

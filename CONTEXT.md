@@ -275,3 +275,5 @@ Expected response:
   Next: Redeploy and re-test /settings diagnostics + chat/model selection + apps workspace calls
 - [2026-03-07 16:14:18] [T1] [Done] Task: Added OneDrive file-create write flow (POST /api/microsoft/files) with Files.ReadWrite scope and wired summarize_file intent to auto-create Word-compatible file links when requested
   Next: User updates Azure app permissions (Files.ReadWrite) and reconnects Microsoft to test Word creation
+- [2026-03-07 16:33:09] [T1] [Done] Task: Added OneDrive CRUD-style API support (list children/content, create file/folder, update file), added Outlook send endpoint, enabled multi-output Word/Excel/PowerPoint OneDrive exports from chat, and added OneDrive app tile/logo
+  Next: User: add Azure Graph delegated permissions + grant consent, reconnect Microsoft, then retest /apps and chat exports
