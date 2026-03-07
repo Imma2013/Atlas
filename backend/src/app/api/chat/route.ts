@@ -48,7 +48,7 @@ const bodySchema = z.object({
       bigModel: z.string().optional(),
     })
     .optional(),
-  userId: z.string().uuid().optional(),
+  userId: z.string().optional(),
 });
 
 type Body = z.infer<typeof bodySchema>;

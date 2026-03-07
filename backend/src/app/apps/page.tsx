@@ -64,22 +64,33 @@ const AppsPage = () => {
     }
 
     try {
-      const [meRes, emailsRes, filesRes, meetingsRes] = await Promise.all([
-        fetch('/api/microsoft/me', { headers: { 'x-microsoft-access-token': token } }),
-        fetch('/api/microsoft/emails?top=4', { headers: { 'x-microsoft-access-token': token } }),
-        fetch('/api/microsoft/files', { headers: { 'x-microsoft-access-token': token } }),
-        fetch('/api/microsoft/meetings', { headers: { 'x-microsoft-access-token': token } }),
-      ]);
-
+      const meRes = await fetch('/api/microsoft/me', {
+        headers: { 'x-microsoft-access-token': token },
+      });
       if (!meRes.ok) throw new Error('Failed to validate Microsoft session');
 
       const mePayload = await meRes.json();
-      const emailPayload = await emailsRes.json().catch(() => ({ emails: [] }));
-      const filePayload = await filesRes.json().catch(() => ({ files: [] }));
-      const meetingPayload = await meetingsRes.json().catch(() => ({ meetings: [] }));
-
       setConnected(true);
       setProfile(mePayload.profile || null);
+
+      const [emailPayload, filePayload, meetingPayload] = await Promise.all([
+        fetch('/api/microsoft/emails?top=4', {
+          headers: { 'x-microsoft-access-token': token },
+        })
+          .then(async (res) => (res.ok ? res.json() : { emails: [] }))
+          .catch(() => ({ emails: [] })),
+        fetch('/api/microsoft/files', {
+          headers: { 'x-microsoft-access-token': token },
+        })
+          .then(async (res) => (res.ok ? res.json() : { files: [] }))
+          .catch(() => ({ files: [] })),
+        fetch('/api/microsoft/meetings', {
+          headers: { 'x-microsoft-access-token': token },
+        })
+          .then(async (res) => (res.ok ? res.json() : { meetings: [] }))
+          .catch(() => ({ meetings: [] })),
+      ]);
+
       setEmails((emailPayload.emails || []).slice(0, 4));
       setFiles((filePayload.files || []).slice(0, 4));
       setMeetings((meetingPayload.meetings || []).slice(0, 4));
@@ -142,6 +153,12 @@ const AppsPage = () => {
           <div className="flex items-center gap-2">
             {connected ? (
               <>
+                <button
+                  onClick={connectMicrosoft}
+                  className="px-3 py-1.5 rounded-lg border border-light-200 dark:border-dark-200 text-sm"
+                >
+                  Reconnect
+                </button>
                 <button
                   onClick={refreshData}
                   className="px-3 py-1.5 rounded-lg border border-light-200 dark:border-dark-200 text-sm"

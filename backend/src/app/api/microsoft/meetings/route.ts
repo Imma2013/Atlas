@@ -27,15 +27,19 @@ export const GET = async (req: Request) => {
     const message = String(error?.message || '');
     const callRecordsPermissionError =
       message.includes('CallRecords.Read') || message.includes('Authorization_RequestDenied');
+    const unauthorized =
+      message.includes('(401)') || message.includes('InvalidAuthenticationToken');
 
     return Response.json(
       {
-        message: callRecordsPermissionError
-          ? 'Call records require Microsoft Graph application permissions with admin consent. Online meetings are available with delegated user OAuth.'
-          : 'Failed to fetch meetings',
+        message: unauthorized
+          ? 'Microsoft token is expired or invalid. Reconnect Microsoft in Apps.'
+          : callRecordsPermissionError
+            ? 'Call records require Microsoft Graph application permissions with admin consent. Online meetings are available with delegated user OAuth.'
+            : 'Failed to fetch meetings',
         error: error?.message || 'Unknown error',
       },
-      { status: 500 },
+      { status: unauthorized ? 401 : 500 },
     );
   }
 };

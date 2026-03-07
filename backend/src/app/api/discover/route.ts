@@ -86,10 +86,11 @@ export const GET = async (req: Request) => {
     console.error(`An error occurred in discover route: ${err}`);
     return Response.json(
       {
-        message: 'An error has occurred',
+        blogs: [],
+        message: 'Discover temporarily unavailable',
       },
       {
-        status: 500,
+        status: 200,
       },
     );
   }

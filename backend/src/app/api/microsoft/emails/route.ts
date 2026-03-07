@@ -26,9 +26,18 @@ export const GET = async (req: Request) => {
 
     return Response.json({ emails: emails.value }, { status: 200 });
   } catch (error: any) {
+    const message = String(error?.message || '');
+    const unauthorized =
+      message.includes('(401)') || message.includes('InvalidAuthenticationToken');
+
     return Response.json(
-      { message: 'Failed to fetch emails', error: error?.message || 'Unknown error' },
-      { status: 500 },
+      {
+        message: unauthorized
+          ? 'Microsoft token is expired or invalid. Reconnect Microsoft in Apps.'
+          : 'Failed to fetch emails',
+        error: error?.message || 'Unknown error',
+      },
+      { status: unauthorized ? 401 : 500 },
     );
   }
 };
