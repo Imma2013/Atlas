@@ -130,6 +130,12 @@ export const executeBrainFlow = async (input: BrainExecutionInput) => {
   const workspaceContextText = workspaceSnapshot
     ? formatWorkspaceContext(workspaceSnapshot)
     : '';
+  const hasWorkspaceData = Boolean(
+    workspaceSnapshot &&
+      ((workspaceSnapshot.emails && workspaceSnapshot.emails.length > 0) ||
+        (workspaceSnapshot.files && workspaceSnapshot.files.length > 0) ||
+        (workspaceSnapshot.events && workspaceSnapshot.events.length > 0)),
+  );
 
   const buildContextualPrompt = (task: string) =>
     [
@@ -244,6 +250,28 @@ export const executeBrainFlow = async (input: BrainExecutionInput) => {
         });
 
         output = concise;
+
+        if (!hasWorkspaceData && (wantsWordOutput || wantsExcelOutput || wantsPowerPointOutput)) {
+          output = await callOpenRouterChat({
+            model: models.midModel,
+            temperature: 0.25,
+            maxTokens: 900,
+            messages: [
+              {
+                role: 'system',
+                content:
+                  'Generate high-quality, standalone document content when workspace context is unavailable. Be specific and useful.',
+              },
+              {
+                role: 'user',
+                content:
+                  input.query.trim().length > 20
+                    ? `Create polished content for this request:\n${input.query}`
+                    : 'Create a polished one-page starter document titled "Atlas Draft" with sections: Summary, Key Points, Next Steps.',
+              },
+            ],
+          });
+        }
       }
       break;
     case 'search_web':

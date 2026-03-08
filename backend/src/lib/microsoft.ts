@@ -473,34 +473,45 @@ export const searchWorkspace = async (accessToken: string, query: string) => {
     // Fall back to direct endpoint scans if Graph Search is unavailable for this account.
   }
 
-  const [emails, files, events] = await Promise.all([
-    listEmails(accessToken, 5),
-    listDriveRootChildren(accessToken, 10),
-    listEvents(accessToken, 5),
+  const [emailsResult, filesResult, eventsResult] = await Promise.allSettled([
+    listEmails(accessToken, 8),
+    listDriveRootChildren(accessToken, 12),
+    listEvents(accessToken, 8),
   ]);
 
-  const norm = query.toLowerCase();
+  const norm = query.toLowerCase().trim();
+  const asksForRecentEmail =
+    /\b(recent|latest|newest|last)\b/.test(norm) &&
+    /\b(email|mail|outlook|inbox)\b/.test(norm);
 
-  const filteredEmails = emails.value.filter((item) =>
-    `${item.subject || ''} ${item.bodyPreview || ''}`.toLowerCase().includes(norm),
-  );
+  const emails =
+    emailsResult.status === 'fulfilled' ? emailsResult.value.value : [];
+  const files = filesResult.status === 'fulfilled' ? filesResult.value.value : [];
+  const events =
+    eventsResult.status === 'fulfilled' ? eventsResult.value.value : [];
 
-  const filteredFiles = files.value.filter((item) =>
+  const filteredEmails = asksForRecentEmail
+    ? emails.slice(0, 1)
+    : emails.filter((item) =>
+        `${item.subject || ''} ${item.bodyPreview || ''}`.toLowerCase().includes(norm),
+      );
+
+  const filteredFiles = files.filter((item) =>
     `${item.name || ''}`.toLowerCase().includes(norm),
   );
 
-  const filteredEvents = events.value.filter((item) =>
+  const filteredEvents = events.filter((item) =>
     `${item.subject || ''}`.toLowerCase().includes(norm),
   );
 
   return {
-    emails: filteredEmails.map((item) => ({
+    emails: (filteredEmails.length > 0 ? filteredEmails : emails.slice(0, 3)).map((item) => ({
       ...item,
       links: {
         outlook: item.webLink || '',
       },
     })),
-    files: filteredFiles.map((item) => ({
+    files: (filteredFiles.length > 0 ? filteredFiles : files.slice(0, 3)).map((item) => ({
       ...item,
       links: {
         onedrive: item.webUrl || '',
@@ -509,7 +520,7 @@ export const searchWorkspace = async (accessToken: string, query: string) => {
         powerpoint: item.webUrl || '',
       },
     })),
-    events: filteredEvents.map((item) => ({
+    events: (filteredEvents.length > 0 ? filteredEvents : events.slice(0, 3)).map((item) => ({
       ...item,
       links: {
         outlook: item.webLink || '',

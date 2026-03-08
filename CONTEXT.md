@@ -305,3 +305,5 @@ Expected response:
   Next: Run Supabase migration 20260306190000_activity_usage_billing.sql in the connected project to restore usage/activity persistence and remove warnings.
 - [2026-03-08 07:41:25] [T1] [Done] Task: Implemented no-OneDrive export fallback in brain flow: when Microsoft drive export fails/unavailable, return local downloadable Word(.doc HTML), Excel(.csv), and PowerPoint outline(.md) payloads; updated /chat UI to render download/open buttons from response.downloads.
   Next: Redeploy and test prompt: make Word+Excel+PowerPoint in one request; verify local download buttons appear when SPO/OneDrive is unavailable.
+- [2026-03-08 08:36:06] [T1] [Done] Task: Patched workspace search fail-open for SPO-missing tenants (emails/events still return when OneDrive fails), improved chat composer UX with in-bar Web toggle, refreshed Apps tab tile visuals, and hardened local download handling; also added standalone document generation when exports requested without workspace context.
+  Next: Redeploy and test: 'most recent outlook email' on non-SPO tenant, then 'make word+powerpoint' to confirm meaningful local file content + download buttons.

@@ -20,36 +20,42 @@ const appTiles = [
     description: 'Open generated deck outlines and slide drafts.',
     href: 'https://www.office.com/launch/powerpoint',
     logo: '/apps/powerpoint.svg',
+    accent: 'from-orange-50 to-rose-50',
   },
   {
     name: 'Word',
     description: 'Open generated documents and polished summaries.',
     href: 'https://www.office.com/launch/word',
     logo: '/apps/word.svg',
+    accent: 'from-blue-50 to-indigo-50',
   },
   {
     name: 'Excel',
     description: 'Open generated sheets and analysis exports.',
     href: 'https://www.office.com/launch/excel',
     logo: '/apps/excel.svg',
+    accent: 'from-emerald-50 to-green-50',
   },
   {
     name: 'Outlook',
     description: 'Review inbox context and create reply drafts.',
     href: 'https://outlook.office.com/mail/',
     logo: '/apps/outlook.svg',
+    accent: 'from-sky-50 to-cyan-50',
   },
   {
     name: 'Teams',
     description: 'Use meeting context and transcript-based summaries.',
     href: 'https://teams.microsoft.com',
     logo: '/apps/teams.svg',
+    accent: 'from-violet-50 to-indigo-50',
   },
   {
     name: 'OneDrive',
     description: 'Browse and open generated files.',
     href: 'https://onedrive.live.com/',
     logo: '/apps/onedrive.svg',
+    accent: 'from-cyan-50 to-sky-50',
   },
 ];
 
@@ -120,12 +126,12 @@ const AppsPage = () => {
 
   return (
     <div className="pt-10 pb-20 px-2 md:px-4">
-      <h1 className="text-3xl font-semibold text-black">Apps</h1>
+      <h1 className="text-3xl font-semibold tracking-tight text-black">Apps</h1>
       <p className="mt-1 text-sm text-black/60">
-        Clean Microsoft workspace integration for chat, drafts, documents, sheets, and decks.
+        Microsoft workspace hub with real app tiles, direct launches, and OAuth status.
       </p>
 
-      <div className="mt-5 rounded-2xl border border-light-200 p-5 bg-white shadow-sm">
+      <div className="mt-5 rounded-3xl border border-light-200 bg-white p-5 shadow-[0_20px_70px_-40px_rgba(0,0,0,0.35)]">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <p className="font-medium text-black">Microsoft 365 OAuth</p>
@@ -181,14 +187,18 @@ const AppsPage = () => {
         {error ? <p className="mt-3 text-sm text-red-600">{error}</p> : null}
       </div>
 
-      <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-3">
+      <div className="mt-6 rounded-3xl border border-light-200 bg-white p-4 shadow-[0_16px_55px_-35px_rgba(0,0,0,0.35)]">
+        <p className="px-2 pb-3 text-xs font-semibold uppercase tracking-[0.14em] text-black/45">
+          Microsoft App Suite
+        </p>
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
         {appTiles.map((app) => (
           <a
             key={app.name}
             href={app.href}
             target="_blank"
             rel="noreferrer"
-            className="rounded-2xl border border-light-200 p-4 bg-white block hover:border-sky-300 hover:shadow-sm transition-all"
+            className={`block rounded-2xl border border-light-200 bg-gradient-to-br ${app.accent} p-4 transition-all hover:-translate-y-0.5 hover:shadow-md`}
           >
             <div className="flex items-center gap-3">
               <Image
@@ -196,15 +206,17 @@ const AppsPage = () => {
                 alt={`${app.name} logo`}
                 width={40}
                 height={40}
-                className="h-10 w-10 rounded-md"
+                className="h-10 w-10 rounded-lg bg-white p-1 shadow-sm"
               />
               <div>
                 <p className="font-medium text-black">{app.name}</p>
                 <p className="mt-1 text-sm text-black/70">{app.description}</p>
+                <p className="mt-2 text-xs font-medium text-black/60">Open app</p>
               </div>
             </div>
           </a>
         ))}
+        </div>
       </div>
     </div>
   );

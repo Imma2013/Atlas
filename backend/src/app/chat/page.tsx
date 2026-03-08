@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react';
 import { CHAT_MODEL_OPTIONS, DEFAULT_CHAT_MODEL } from '@/lib/modelCatalog';
 import { getMicrosoftAccessToken } from '@/lib/microsoftAuthClient';
-import { Sparkles } from 'lucide-react';
+import { Globe, SendHorizonal, Sparkles } from 'lucide-react';
 
 type ChatMessage = {
   role: 'user' | 'assistant';
@@ -140,27 +140,27 @@ const ChatPage = () => {
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-8 md:px-6">
-      <div className="rounded-2xl border border-light-200 bg-white p-5 shadow-sm">
+      <div className="rounded-3xl border border-light-200 bg-white/95 p-6 shadow-[0_18px_60px_-30px_rgba(0,0,0,0.35)]">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h1 className="text-3xl font-semibold text-black">Atlas Chat</h1>
+            <h1 className="text-3xl font-semibold tracking-tight text-black">Atlas Chat</h1>
             <p className="mt-1 text-sm text-black/60">
               Workspace-first assistant with direct Word, Excel, PowerPoint, and draft workflows.
             </p>
           </div>
-          <div className="inline-flex items-center gap-1 rounded-full bg-sky-50 px-3 py-1 text-xs text-sky-700">
+          <div className="inline-flex items-center gap-1 rounded-full bg-sky-50 px-3 py-1 text-xs font-medium text-sky-700">
             <Sparkles size={14} />
             Brain mode active
           </div>
         </div>
 
-        <div className="mt-5 grid gap-3 md:grid-cols-3">
-          <label className="md:col-span-2">
-            <span className="mb-1 block text-sm text-black/70">Chat model</span>
+        <div className="mt-5 rounded-2xl border border-black/10 bg-gradient-to-br from-white to-slate-50 p-3">
+          <label className="block">
+            <span className="mb-1 block px-1 text-xs font-semibold uppercase tracking-[0.12em] text-black/45">Chat model</span>
             <select
               value={model}
               onChange={(e) => setModel(e.target.value)}
-              className="w-full rounded-xl border border-light-200 bg-white px-3 py-2 text-sm"
+              className="w-full rounded-xl border border-light-200 bg-white px-3 py-2 text-sm shadow-sm"
             >
               <optgroup label="Anthropic">
                 {groupedModels.Anthropic.map((option) => (
@@ -179,36 +179,43 @@ const ChatPage = () => {
             </select>
           </label>
 
-          <label className="flex items-end gap-2 pb-2">
+          <div className="mt-3 rounded-2xl border border-black/10 bg-white p-2 shadow-[0_8px_30px_-20px_rgba(0,0,0,0.4)]">
             <input
-              type="checkbox"
-              checked={includeWeb}
-              onChange={(e) => setIncludeWeb(e.target.checked)}
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  submit();
+                }
+              }}
+              placeholder={placeholder}
+              className="w-full rounded-xl border-none bg-transparent px-2 py-2 text-sm outline-none"
             />
-            <span className="text-sm text-black/80">Enable web source</span>
-          </label>
-        </div>
+            <div className="mt-2 flex items-center justify-between gap-2">
+              <button
+                type="button"
+                onClick={() => setIncludeWeb((prev) => !prev)}
+                className={`inline-flex items-center gap-1 rounded-full border px-3 py-1.5 text-xs font-medium transition ${
+                  includeWeb
+                    ? 'border-sky-300 bg-sky-50 text-sky-700'
+                    : 'border-black/10 bg-white text-black/70 hover:bg-black/5'
+                }`}
+              >
+                <Globe size={13} />
+                Web {includeWeb ? 'On' : 'Off'}
+              </button>
 
-        <div className="mt-4 flex gap-2">
-          <input
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                submit();
-              }
-            }}
-            placeholder={placeholder}
-            className="flex-1 rounded-xl border border-light-200 bg-white px-3 py-2 text-sm"
-          />
-          <button
-            onClick={submit}
-            disabled={loading}
-            className="rounded-xl bg-sky-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
-          >
-            {loading ? 'Running...' : 'Send'}
-          </button>
+              <button
+                onClick={submit}
+                disabled={loading}
+                className="inline-flex items-center gap-1 rounded-xl bg-black px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
+              >
+                <SendHorizonal size={14} />
+                {loading ? 'Running...' : 'Send'}
+              </button>
+            </div>
+          </div>
         </div>
 
         {error ? <p className="mt-2 text-sm text-red-600">{error}</p> : null}
@@ -260,7 +267,7 @@ const ChatPage = () => {
                         document.body.appendChild(link);
                         link.click();
                         link.remove();
-                        URL.revokeObjectURL(url);
+                        setTimeout(() => URL.revokeObjectURL(url), 1200);
                       }}
                       className="rounded-lg border border-light-200 bg-white px-3 py-1.5 text-xs text-black hover:bg-light-100"
                     >
