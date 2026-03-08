@@ -323,40 +323,62 @@ export const mergeTranscriptText = (segments: TranscriptSegment[]) =>
 
 export const searchWorkspace = async (accessToken: string, query: string) => {
   try {
-    const graphSearch = await graphRequest<{
+    type GraphSearchResponse = {
       value?: Array<{
         hitsContainers?: Array<{
           hits?: Array<{ resource?: Record<string, any> }>;
         }>;
       }>;
-    }>('/search/query', accessToken, {
-      method: 'POST',
-      body: JSON.stringify({
-        requests: [
-          {
-            entityTypes: ['message', 'event', 'driveItem'],
-            query: { queryString: query },
-            from: 0,
-            size: 30,
-          },
-        ],
-      }),
-    });
+    };
 
-    const containers = graphSearch?.value?.[0]?.hitsContainers || [];
-    const resources = containers.flatMap((container) =>
-      (container.hits || []).map((hit) => hit.resource || {}),
+    const runGraphSearch = async (
+      entityType: 'message' | 'event' | 'driveItem',
+      size: number,
+    ) =>
+      graphRequest<GraphSearchResponse>('/search/query', accessToken, {
+        method: 'POST',
+        body: JSON.stringify({
+          requests: [
+            {
+              entityTypes: [entityType],
+              query: { queryString: query },
+              from: 0,
+              size,
+            },
+          ],
+        }),
+      });
+
+    const [emailSearch, eventSearch, fileSearch] = await Promise.allSettled([
+      runGraphSearch('message', 8),
+      runGraphSearch('event', 8),
+      runGraphSearch('driveItem', 10),
+    ]);
+
+    const pickResources = (response: PromiseSettledResult<GraphSearchResponse>) => {
+      if (response.status !== 'fulfilled') {
+        return [] as Array<Record<string, any>>;
+      }
+
+      const containers = response.value?.value?.[0]?.hitsContainers || [];
+      return containers.flatMap((container) =>
+        (container.hits || []).map((hit) => hit.resource || {}),
+      );
+    };
+
+    const emails = pickResources(emailSearch).filter(
+      (item) => item?.subject && (item?.from || item?.sender || item?.bodyPreview),
+    );
+    const events = pickResources(eventSearch).filter(
+      (item) => item?.start && item?.end && item?.subject,
+    );
+    const files = pickResources(fileSearch).filter(
+      (item) => item?.name && (item?.file || item?.folder || item?.webUrl),
     );
 
-    const emails = resources
-      .filter((item) => item?.subject && (item?.from || item?.sender || item?.bodyPreview))
-      .slice(0, 8);
-    const events = resources
-      .filter((item) => item?.start && item?.end && item?.subject)
-      .slice(0, 8);
-    const files = resources
-      .filter((item) => item?.name && (item?.file || item?.folder || item?.webUrl))
-      .slice(0, 10);
+    if (emails.length === 0 && events.length === 0 && files.length === 0) {
+      throw new Error('Graph search returned no resources');
+    }
 
     return {
       emails: emails.map((item) => ({

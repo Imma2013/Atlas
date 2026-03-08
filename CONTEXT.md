@@ -285,3 +285,9 @@ Expected response:
   Next: User: redeploy and re-test Microsoft connect with clean Apps UI
 - [2026-03-07 19:45:22] [T1] [Done] Task: Replaced legacy chat UI with a new simple workspace-first chat page (model chooser + optional web toggle), routed /c/[chatId] to the new page, and disabled legacy DB-backed /api/chats endpoints
   Next: User: redeploy and validate new /chat flow with Microsoft token + selected model
+- [2026-03-07 19:47:36] [T1] [Done] Task: Handoff note: chat stack reset is coded locally (simple /chat UI + legacy /api/chats disabled) but not fully verified end-to-end in production by T1; required follow-up is Vercel redeploy and live OAuth+chat validation
+  Next: Next agent: redeploy latest main, test Microsoft reconnect, test prompt that creates Word/Excel/PPT links, and confirm no legacy chat regressions
+- [2026-03-07 19:54:13] [T1] [Done] Task: Fixed Anthropic model alias consistency for direct provider calls: normalized claude-haiku-4-5/4.5 aliases in openrouter + diagnostics and aligned /chat selector value to prevent invalid model ID failures.
+  Next: Redeploy and run Settings diagnostics + a /chat prompt using Haiku/Sonnet/Opus to confirm provider connectivity and model selection behavior in production.
+- [2026-03-07 19:55:41] [T1] [Done] Task: Improved Microsoft workspace search reliability: split Graph /search/query calls by entity type (message/event/driveItem) and merge results, with fallback path preserved; also fixed Anthropic model alias normalization mismatch (claude-haiku-4-5/4.5) in chat + diagnostics.
+  Next: Redeploy and validate /chat workspace prompts return mixed email/event/file context without forcing fallback; then run Settings diagnostics for Anthropic/Gemini model checks.

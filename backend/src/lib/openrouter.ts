@@ -18,7 +18,9 @@ const toPlainModel = (model: string) => model.replace(/^(anthropic|gemini)\//, '
 const normalizeAnthropicModel = (model: string) => {
   const plain = toPlainModel(model);
   const mapped: Record<string, string> = {
+    'claude-haiku-4-5': 'claude-3-5-haiku-20241022',
     'claude-haiku-4.5': 'claude-3-5-haiku-20241022',
+    'claude-3-5-haiku': 'claude-3-5-haiku-20241022',
     'claude-sonnet-4': 'claude-sonnet-4-20250514',
     'claude-sonnet-4.5': 'claude-sonnet-4-20250514',
     'claude-sonnet-4.6': 'claude-sonnet-4-20250514',

@@ -10,6 +10,22 @@ const mask = (value?: string) => {
   return `${value.slice(0, 4)}...${value.slice(-4)}`;
 };
 
+const normalizeAnthropicModelForCheck = (model: string) => {
+  const plain = model.replace(/^anthropic\//, '');
+  const mapped: Record<string, string> = {
+    'claude-sonnet-4.6': 'claude-sonnet-4-20250514',
+    'claude-sonnet-4.5': 'claude-sonnet-4-20250514',
+    'claude-sonnet-4': 'claude-sonnet-4-20250514',
+    'claude-opus-4.6': 'claude-opus-4-1-20250805',
+    'claude-opus-4.1': 'claude-opus-4-1-20250805',
+    'claude-opus-4': 'claude-opus-4-1-20250805',
+    'claude-haiku-4-5': 'claude-3-5-haiku-20241022',
+    'claude-haiku-4.5': 'claude-3-5-haiku-20241022',
+    'claude-3-5-haiku': 'claude-3-5-haiku-20241022',
+  };
+  return mapped[plain] || plain;
+};
+
 const testAnthropic = async (apiKey: string, model: string) => {
   const result = { reachable: false, error: null as string | null };
   try {
@@ -21,15 +37,7 @@ const testAnthropic = async (apiKey: string, model: string) => {
         'anthropic-version': '2023-06-01',
       },
       body: JSON.stringify({
-        model: model
-          .replace(/^anthropic\//, '')
-          .replace('claude-sonnet-4.6', 'claude-sonnet-4-20250514')
-          .replace('claude-sonnet-4.5', 'claude-sonnet-4-20250514')
-          .replace('claude-sonnet-4', 'claude-sonnet-4-20250514')
-          .replace('claude-opus-4.6', 'claude-opus-4-1-20250805')
-          .replace('claude-opus-4.1', 'claude-opus-4-1-20250805')
-          .replace('claude-opus-4', 'claude-opus-4-1-20250805')
-          .replace('claude-haiku-4.5', 'claude-3-5-haiku-20241022'),
+        model: normalizeAnthropicModelForCheck(model),
         max_tokens: 16,
         temperature: 0,
         messages: [{ role: 'user', content: 'reply with ok' }],

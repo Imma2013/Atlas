@@ -8,7 +8,7 @@ type ChatMessage = {
 };
 
 const MODEL_OPTIONS = [
-  { label: 'Claude Haiku 4.5 (Router/Cheap)', value: 'anthropic/claude-haiku-4-5' },
+  { label: 'Claude Haiku 4.5 (Router/Cheap)', value: 'anthropic/claude-haiku-4.5' },
   { label: 'Claude Sonnet 4 (Default)', value: 'anthropic/claude-sonnet-4' },
   { label: 'Claude Opus 4 (Heavy)', value: 'anthropic/claude-opus-4' },
   { label: 'Gemini 2.5 Flash', value: 'gemini/gemini-2.5-flash' },
