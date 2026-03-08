@@ -315,56 +315,74 @@ export const executeBrainFlow = async (input: BrainExecutionInput) => {
     const stampedDate = new Date().toISOString().slice(0, 10);
     const renderedOutput = typeof output === 'string' ? output : JSON.stringify(output, null, 2);
     const exportedLinks: string[] = [];
+    const exportErrors: string[] = [];
 
     if (wantsWordOutput) {
-      const doc = await createDriveFile({
-        accessToken: input.microsoftAccessToken,
-        fileName: `Atlas-Document-${stampedDate}.doc`,
-        content: `<!doctype html><html><head><meta charset="utf-8"></head><body><pre style="white-space:pre-wrap;font-family:Calibri,Arial,sans-serif;font-size:12pt;">${renderedOutput
-          .replace(/&/g, '&amp;')
-          .replace(/</g, '&lt;')
-          .replace(/>/g, '&gt;')}</pre></body></html>`,
-        contentType: 'text/html; charset=utf-8',
-      });
-      if (doc.webUrl) {
-        exportedLinks.push(`Word: ${doc.webUrl}`);
-        activityLinks.word = doc.webUrl;
-        activityLinks.onedrive = doc.webUrl;
+      try {
+        const doc = await createDriveFile({
+          accessToken: input.microsoftAccessToken,
+          fileName: `Atlas-Document-${stampedDate}.doc`,
+          content: `<!doctype html><html><head><meta charset="utf-8"></head><body><pre style="white-space:pre-wrap;font-family:Calibri,Arial,sans-serif;font-size:12pt;">${renderedOutput
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')}</pre></body></html>`,
+          contentType: 'text/html; charset=utf-8',
+        });
+        if (doc.webUrl) {
+          exportedLinks.push(`Word: ${doc.webUrl}`);
+          activityLinks.word = doc.webUrl;
+          activityLinks.onedrive = doc.webUrl;
+        }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Unknown error';
+        exportErrors.push(`Word export failed: ${message}`);
       }
     }
 
     if (wantsExcelOutput) {
       const excelCsv = `Section,Details\n"Summary","${renderedOutput.replace(/"/g, '""').replace(/\n/g, ' ')}"`;
-      const csv = await createDriveFile({
-        accessToken: input.microsoftAccessToken,
-        fileName: `Atlas-Spreadsheet-${stampedDate}.csv`,
-        content: excelCsv,
-        contentType: 'text/csv; charset=utf-8',
-      });
-      if (csv.webUrl) {
-        exportedLinks.push(`Excel (CSV): ${csv.webUrl}`);
-        activityLinks.excel = csv.webUrl;
-        activityLinks.onedrive = activityLinks.onedrive || csv.webUrl;
+      try {
+        const csv = await createDriveFile({
+          accessToken: input.microsoftAccessToken,
+          fileName: `Atlas-Spreadsheet-${stampedDate}.csv`,
+          content: excelCsv,
+          contentType: 'text/csv; charset=utf-8',
+        });
+        if (csv.webUrl) {
+          exportedLinks.push(`Excel (CSV): ${csv.webUrl}`);
+          activityLinks.excel = csv.webUrl;
+          activityLinks.onedrive = activityLinks.onedrive || csv.webUrl;
+        }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Unknown error';
+        exportErrors.push(`Excel export failed: ${message}`);
       }
     }
 
     if (wantsPowerPointOutput) {
       const deckOutline = `# Atlas Deck Outline\n\n${renderedOutput}`;
-      const deck = await createDriveFile({
-        accessToken: input.microsoftAccessToken,
-        fileName: `Atlas-Deck-Outline-${stampedDate}.md`,
-        content: deckOutline,
-        contentType: 'text/markdown; charset=utf-8',
-      });
-      if (deck.webUrl) {
-        exportedLinks.push(`PowerPoint outline: ${deck.webUrl}`);
-        activityLinks.powerpoint = deck.webUrl;
-        activityLinks.onedrive = activityLinks.onedrive || deck.webUrl;
+      try {
+        const deck = await createDriveFile({
+          accessToken: input.microsoftAccessToken,
+          fileName: `Atlas-Deck-Outline-${stampedDate}.md`,
+          content: deckOutline,
+          contentType: 'text/markdown; charset=utf-8',
+        });
+        if (deck.webUrl) {
+          exportedLinks.push(`PowerPoint outline: ${deck.webUrl}`);
+          activityLinks.powerpoint = deck.webUrl;
+          activityLinks.onedrive = activityLinks.onedrive || deck.webUrl;
+        }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Unknown error';
+        exportErrors.push(`PowerPoint export failed: ${message}`);
       }
     }
 
     if (exportedLinks.length > 0) {
       output = `${renderedOutput}\n\nCreated files:\n${exportedLinks.join('\n')}`;
+    } else if (exportErrors.length > 0) {
+      output = `${renderedOutput}\n\nFile export was requested but failed:\n${exportErrors.join('\n')}`;
     }
   }
 

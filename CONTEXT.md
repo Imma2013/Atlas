@@ -295,3 +295,9 @@ Expected response:
   Next: Redeploy and test live flows: Apps OAuth reconnect, chat model selection, 'email -> Word/Excel/PPT export' prompts, and workspace link accuracy in responses.
 - [2026-03-08 06:28:46] [T1] [Done] Task: Web-grounded model compatibility pass: removed deprecated Gemini 2.0 from chat catalog and added server-side Gemini 2.0->2.5 normalization in openrouter and diagnostics.
   Next: Redeploy backend and run Settings diagnostics + /chat smoke tests for Anthropic/Gemini and Microsoft workspace prompts.
+- [2026-03-08 06:41:51] [T1] [Done] Task: Fixed Microsoft redirect URI normalization (trim trailing APP_URL slash) and made Word/Excel/PPT export failures non-fatal in brain engine so /api/chat no longer hard-500s on Graph file-write errors.
+  Next: Redeploy on Vercel, reconnect Microsoft, then retest 'make a word document' and Settings diagnostics redirect check.
+- [2026-03-08 06:43:06] [T1] [Done] Task: Added /api/chat brainMode fail-soft handling: unexpected brain errors now return a non-500 fallback response to keep chat UI alive.
+  Next: Redeploy and validate chat no longer throws client-side assistant error on export failures.
+- [2026-03-08 07:06:07] [T1] [Done] Task: Normalized Microsoft redirect URIs to canonical single-slash paths even when MICROSOFT_REDIRECT_URI is misconfigured with double slashes; updated diagnostics to compare normalized URI.
+  Next: Commit/push and redeploy; then reconnect Microsoft and retest OAuth + 'make a word document'.

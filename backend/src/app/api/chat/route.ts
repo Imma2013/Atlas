@@ -143,24 +143,39 @@ export const POST = async (req: Request) => {
         req.headers.get('authorization')?.replace(/^Bearer\s+/i, '');
       const userId = body.userId || req.headers.get('x-user-id') || undefined;
 
-      const brainResponse = await executeBrainFlow({
-        query: message.content,
-        userId,
-        microsoftAccessToken: microsoftAccessToken || undefined,
-        sources: body.sources,
-        history: body.history,
-        models: {
-          routerModel:
-            body.openRouterModels?.routerModel ||
-            defaultRouterModelConfig.routerModel,
-          midModel:
-            body.openRouterModels?.midModel || defaultRouterModelConfig.midModel,
-          bigModel:
-            body.openRouterModels?.bigModel || defaultRouterModelConfig.bigModel,
-        },
-      });
+      try {
+        const brainResponse = await executeBrainFlow({
+          query: message.content,
+          userId,
+          microsoftAccessToken: microsoftAccessToken || undefined,
+          sources: body.sources,
+          history: body.history,
+          models: {
+            routerModel:
+              body.openRouterModels?.routerModel ||
+              defaultRouterModelConfig.routerModel,
+            midModel:
+              body.openRouterModels?.midModel || defaultRouterModelConfig.midModel,
+            bigModel:
+              body.openRouterModels?.bigModel || defaultRouterModelConfig.bigModel,
+          },
+        });
 
-      return Response.json(brainResponse, { status: 200 });
+        return Response.json(brainResponse, { status: 200 });
+      } catch (error) {
+        const message =
+          error instanceof Error
+            ? error.message
+            : 'Unknown brain execution error';
+        return Response.json(
+          {
+            intent: 'unknown',
+            output: `Request processed with fallback. ${message}`,
+            failedSoft: true,
+          },
+          { status: 200 },
+        );
+      }
     }
 
     const [{ default: ModelRegistry }, { default: SearchAgent }, { default: SessionManager }] =

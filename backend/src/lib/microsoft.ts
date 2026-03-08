@@ -1,5 +1,27 @@
 const GRAPH_BASE_URL = 'https://graph.microsoft.com/v1.0';
 
+const normalizeAppBaseUrl = (value?: string) =>
+  (value || 'http://localhost:3000').trim().replace(/\/+$/, '');
+
+const normalizeRedirectUri = (value: string) => {
+  try {
+    const url = new URL(value.trim());
+    url.pathname = url.pathname.replace(/\/{2,}/g, '/');
+    if (url.pathname.length > 1) {
+      url.pathname = url.pathname.replace(/\/+$/, '');
+    }
+    return `${url.origin}${url.pathname}${url.search}`;
+  } catch {
+    return value.trim();
+  }
+};
+
+const resolveMicrosoftRedirectUri = () =>
+  normalizeRedirectUri(
+    process.env.MICROSOFT_REDIRECT_URI?.trim() ||
+      `${normalizeAppBaseUrl(process.env.APP_URL)}/microsoft/callback`,
+  );
+
 const graphRequest = async <T>(
   path: string,
   accessToken: string,
@@ -26,9 +48,7 @@ const graphRequest = async <T>(
 export const getMicrosoftAuthUrl = (state?: string): string => {
   const tenant = process.env.MICROSOFT_TENANT_ID || 'common';
   const clientId = process.env.MICROSOFT_CLIENT_ID;
-  const redirectUri =
-    process.env.MICROSOFT_REDIRECT_URI ||
-    `${process.env.APP_URL || 'http://localhost:3000'}/microsoft/callback`;
+  const redirectUri = resolveMicrosoftRedirectUri();
 
   if (!clientId || !redirectUri) {
     throw new Error('Missing Microsoft OAuth env vars');
@@ -65,9 +85,7 @@ export const exchangeMicrosoftCode = async (code: string) => {
   const tenant = process.env.MICROSOFT_TENANT_ID || 'common';
   const clientId = process.env.MICROSOFT_CLIENT_ID;
   const clientSecret = process.env.MICROSOFT_CLIENT_SECRET;
-  const redirectUri =
-    process.env.MICROSOFT_REDIRECT_URI ||
-    `${process.env.APP_URL || 'http://localhost:3000'}/microsoft/callback`;
+  const redirectUri = resolveMicrosoftRedirectUri();
 
   if (!clientId || !clientSecret || !redirectUri) {
     throw new Error('Missing Microsoft OAuth env vars');
@@ -173,9 +191,7 @@ export const refreshMicrosoftToken = async (refreshToken: string) => {
   const tenant = process.env.MICROSOFT_TENANT_ID || 'common';
   const clientId = process.env.MICROSOFT_CLIENT_ID;
   const clientSecret = process.env.MICROSOFT_CLIENT_SECRET;
-  const redirectUri =
-    process.env.MICROSOFT_REDIRECT_URI ||
-    `${process.env.APP_URL || 'http://localhost:3000'}/microsoft/callback`;
+  const redirectUri = resolveMicrosoftRedirectUri();
 
   if (!clientId || !clientSecret || !redirectUri) {
     throw new Error('Missing Microsoft OAuth env vars');

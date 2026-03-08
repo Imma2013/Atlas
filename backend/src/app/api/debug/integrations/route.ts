@@ -4,6 +4,22 @@ export const dynamic = 'force-dynamic';
 const ANTHROPIC_TEST_ENDPOINT = 'https://api.anthropic.com/v1/messages';
 const GEMINI_BASE_URL = 'https://generativelanguage.googleapis.com/v1beta';
 
+const normalizeAppBaseUrl = (value?: string) =>
+  (value || 'http://localhost:3000').trim().replace(/\/+$/, '');
+
+const normalizeRedirectUri = (value: string) => {
+  try {
+    const url = new URL(value.trim());
+    url.pathname = url.pathname.replace(/\/{2,}/g, '/');
+    if (url.pathname.length > 1) {
+      url.pathname = url.pathname.replace(/\/+$/, '');
+    }
+    return `${url.origin}${url.pathname}${url.search}`;
+  } catch {
+    return value.trim();
+  }
+};
+
 const mask = (value?: string) => {
   if (!value) return null;
   if (value.length <= 8) return `${value.slice(0, 2)}***${value.slice(-2)}`;
@@ -90,10 +106,11 @@ const testGemini = async (apiKey: string, model: string) => {
 };
 
 export const GET = async () => {
-  const appUrl = process.env.APP_URL || 'http://localhost:3000';
+  const appUrl = normalizeAppBaseUrl(process.env.APP_URL);
   const microsoftRedirectExpected = `${appUrl}/microsoft/callback`;
-  const microsoftRedirectConfigured =
-    process.env.MICROSOFT_REDIRECT_URI || microsoftRedirectExpected;
+  const microsoftRedirectConfigured = normalizeRedirectUri(
+    process.env.MICROSOFT_REDIRECT_URI || microsoftRedirectExpected,
+  );
 
   const routerModel =
     process.env.ATLAS_ROUTER_MODEL ||
