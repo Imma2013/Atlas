@@ -54,6 +54,27 @@ const decodeBase64ToBytes = (base64: string) => {
   return bytes;
 };
 
+const starterCards = [
+  {
+    title: 'Spreadsheets',
+    description: 'Track metrics, budget, and forecast summaries.',
+    icon: 'https://static2.sharepointonline.com/files/fabric/assets/brand-icons/product-fluent/svg/excel_48x1.svg',
+    prompt: 'Make an Excel sheet summary from my latest workspace context.',
+  },
+  {
+    title: 'Documents',
+    description: 'Create polished Word-ready drafts and briefs.',
+    icon: 'https://static2.sharepointonline.com/files/fabric/assets/brand-icons/product-fluent/svg/word_48x1.svg',
+    prompt: 'Make a Word document draft from this request.',
+  },
+  {
+    title: 'Presentations',
+    description: 'Build slide outlines for quick deck creation.',
+    icon: 'https://static2.sharepointonline.com/files/fabric/assets/brand-icons/product-fluent/svg/powerpoint_48x1.svg',
+    prompt: 'Create a PowerPoint outline for this topic.',
+  },
+];
+
 const ChatPage = () => {
   const [model, setModel] = useState(DEFAULT_CHAT_MODEL);
   const [includeWeb, setIncludeWeb] = useState(false);
@@ -143,7 +164,9 @@ const ChatPage = () => {
       <div className="rounded-3xl border border-light-200 bg-white/95 p-6 shadow-[0_18px_60px_-30px_rgba(0,0,0,0.35)]">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h1 className="text-3xl font-semibold tracking-tight text-black">Atlas Chat</h1>
+            <h1 className="text-3xl font-semibold tracking-tight text-black">
+              {messages.length === 0 ? 'How can I help you?' : 'Atlas Chat'}
+            </h1>
             <p className="mt-1 text-sm text-black/60">
               Workspace-first assistant with direct Word, Excel, PowerPoint, and draft workflows.
             </p>
@@ -153,6 +176,25 @@ const ChatPage = () => {
             Brain mode active
           </div>
         </div>
+
+        {messages.length === 0 ? (
+          <div className="mt-5 grid gap-3 md:grid-cols-3">
+            {starterCards.map((card) => (
+              <button
+                key={card.title}
+                type="button"
+                onClick={() => setInput(card.prompt)}
+                className="rounded-2xl border border-light-200 bg-white p-4 text-left transition hover:shadow-md"
+              >
+                <div className="flex items-center gap-2">
+                  <img src={card.icon} alt={`${card.title} icon`} className="h-6 w-6" />
+                  <p className="text-base font-semibold text-black">{card.title}</p>
+                </div>
+                <p className="mt-2 text-sm text-black/65">{card.description}</p>
+              </button>
+            ))}
+          </div>
+        ) : null}
 
         <div className="mt-5 rounded-2xl border border-black/10 bg-gradient-to-br from-white to-slate-50 p-3">
           <label className="block">

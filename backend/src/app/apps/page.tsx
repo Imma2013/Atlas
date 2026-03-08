@@ -6,7 +6,6 @@ import {
   getMicrosoftAccessToken,
 } from '@/lib/microsoftAuthClient';
 import { ArrowRight, CheckCircle2, Link2, RefreshCw } from 'lucide-react';
-import Image from 'next/image';
 
 type MicrosoftProfile = {
   displayName?: string;
@@ -19,42 +18,42 @@ const appTiles = [
     name: 'PowerPoint',
     description: 'Open generated deck outlines and slide drafts.',
     href: 'https://www.office.com/launch/powerpoint',
-    logo: '/apps/powerpoint.svg',
+    logo: 'https://static2.sharepointonline.com/files/fabric/assets/brand-icons/product-fluent/svg/powerpoint_48x1.svg',
     accent: 'from-orange-50 to-rose-50',
   },
   {
     name: 'Word',
     description: 'Open generated documents and polished summaries.',
     href: 'https://www.office.com/launch/word',
-    logo: '/apps/word.svg',
+    logo: 'https://static2.sharepointonline.com/files/fabric/assets/brand-icons/product-fluent/svg/word_48x1.svg',
     accent: 'from-blue-50 to-indigo-50',
   },
   {
     name: 'Excel',
     description: 'Open generated sheets and analysis exports.',
     href: 'https://www.office.com/launch/excel',
-    logo: '/apps/excel.svg',
+    logo: 'https://static2.sharepointonline.com/files/fabric/assets/brand-icons/product-fluent/svg/excel_48x1.svg',
     accent: 'from-emerald-50 to-green-50',
   },
   {
     name: 'Outlook',
     description: 'Review inbox context and create reply drafts.',
     href: 'https://outlook.office.com/mail/',
-    logo: '/apps/outlook.svg',
+    logo: 'https://static2.sharepointonline.com/files/fabric/assets/brand-icons/product-fluent/svg/outlook_48x1.svg',
     accent: 'from-sky-50 to-cyan-50',
   },
   {
     name: 'Teams',
     description: 'Use meeting context and transcript-based summaries.',
     href: 'https://teams.microsoft.com',
-    logo: '/apps/teams.svg',
+    logo: 'https://static2.sharepointonline.com/files/fabric/assets/brand-icons/product-fluent/svg/teams_48x1.svg',
     accent: 'from-violet-50 to-indigo-50',
   },
   {
     name: 'OneDrive',
     description: 'Browse and open generated files.',
     href: 'https://onedrive.live.com/',
-    logo: '/apps/onedrive.svg',
+    logo: 'https://static2.sharepointonline.com/files/fabric/assets/brand-icons/product-fluent/svg/onedrive_48x1.svg',
     accent: 'from-cyan-50 to-sky-50',
   },
 ];
@@ -201,7 +200,7 @@ const AppsPage = () => {
             className={`block rounded-2xl border border-light-200 bg-gradient-to-br ${app.accent} p-4 transition-all hover:-translate-y-0.5 hover:shadow-md`}
           >
             <div className="flex items-center gap-3">
-              <Image
+              <img
                 src={app.logo}
                 alt={`${app.name} logo`}
                 width={40}

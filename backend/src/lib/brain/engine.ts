@@ -76,6 +76,51 @@ const formatWorkspaceContext = (workspace: any) => {
 
 const toBase64 = (value: string) => Buffer.from(value, 'utf8').toString('base64');
 
+const extractSingleWordRequest = (query: string) => {
+  const match = query.match(/\bjust\s+(?:the\s+)?word\s+["']?([a-z0-9_-]+)["']?/i);
+  return match?.[1] || null;
+};
+
+const generateStandaloneDocument = async (input: {
+  model: string;
+  query: string;
+  workspaceContextText: string;
+  conversationContext: string;
+}) => {
+  const forcedWord = extractSingleWordRequest(input.query);
+  if (forcedWord) {
+    return forcedWord;
+  }
+
+  return callOpenRouterChat({
+    model: input.model,
+    temperature: 0.25,
+    maxTokens: 900,
+    messages: [
+      {
+        role: 'system',
+        content:
+          'You are writing document content only. Never explain platform limitations or mention inability. Return only the document body text.',
+      },
+      {
+        role: 'user',
+        content: [
+          `Request: ${input.query}`,
+          input.conversationContext
+            ? `Conversation:\n${input.conversationContext}`
+            : '',
+          input.workspaceContextText
+            ? `Workspace Context:\n${input.workspaceContextText}`
+            : '',
+          'Write a polished document draft directly from this request.',
+        ]
+          .filter(Boolean)
+          .join('\n\n'),
+      },
+    ],
+  });
+};
+
 export const executeBrainFlow = async (input: BrainExecutionInput) => {
   const models = mergeModels(input.models);
   const selectedSources = new Set(input.sources || []);
@@ -194,13 +239,22 @@ export const executeBrainFlow = async (input: BrainExecutionInput) => {
       modelUsed = models.midModel;
       activityType = 'file';
       activityLinks = { word: 'https://www.office.com/launch/word' };
-      output = await summarizeText({
-        content: buildContextualPrompt(
-          'Summarize the relevant file content and highlight key facts, deadlines, and risks.',
-        ),
-        context: 'a file',
-        model: models.midModel,
-      });
+      if (wantsFileOutput && !hasWorkspaceData) {
+        output = await generateStandaloneDocument({
+          model: models.midModel,
+          query: input.query,
+          workspaceContextText,
+          conversationContext,
+        });
+      } else {
+        output = await summarizeText({
+          content: buildContextualPrompt(
+            'Summarize the relevant file content and highlight key facts, deadlines, and risks.',
+          ),
+          context: 'a file',
+          model: models.midModel,
+        });
+      }
 
       break;
     case 'search_workspace':
@@ -252,24 +306,11 @@ export const executeBrainFlow = async (input: BrainExecutionInput) => {
         output = concise;
 
         if (!hasWorkspaceData && (wantsWordOutput || wantsExcelOutput || wantsPowerPointOutput)) {
-          output = await callOpenRouterChat({
+          output = await generateStandaloneDocument({
             model: models.midModel,
-            temperature: 0.25,
-            maxTokens: 900,
-            messages: [
-              {
-                role: 'system',
-                content:
-                  'Generate high-quality, standalone document content when workspace context is unavailable. Be specific and useful.',
-              },
-              {
-                role: 'user',
-                content:
-                  input.query.trim().length > 20
-                    ? `Create polished content for this request:\n${input.query}`
-                    : 'Create a polished one-page starter document titled "Atlas Draft" with sections: Summary, Key Points, Next Steps.',
-              },
-            ],
+            query: input.query,
+            workspaceContextText,
+            conversationContext,
           });
         }
       }
