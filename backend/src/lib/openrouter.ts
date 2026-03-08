@@ -36,6 +36,8 @@ const normalizeAnthropicModel = (model: string) => {
 const normalizeGeminiModel = (model: string) => {
   const plain = toPlainModel(model);
   const mapped: Record<string, string> = {
+    'gemini-2.0-flash': 'gemini-2.5-flash',
+    'gemini-2.0-flash-exp': 'gemini-2.5-flash',
     'gemini-2.5-flash-lite': 'gemini-2.5-flash-lite',
     'gemini-2.5-flash': 'gemini-2.5-flash',
     'gemini-2.5-pro': 'gemini-2.5-pro',

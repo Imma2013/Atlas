@@ -55,12 +55,6 @@ export const CHAT_MODEL_OPTIONS: ChatModelOption[] = [
     provider: 'gemini',
     tier: 'big',
   },
-  {
-    value: 'gemini/gemini-2.0-flash',
-    label: 'Gemini 2.0 Flash',
-    provider: 'gemini',
-    tier: 'general',
-  },
 ];
 
 export const DEFAULT_CHAT_MODEL = 'anthropic/claude-sonnet-4-20250514';

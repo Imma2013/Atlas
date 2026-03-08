@@ -27,6 +27,15 @@ const normalizeAnthropicModelForCheck = (model: string) => {
   return mapped[plain] || plain;
 };
 
+const normalizeGeminiModelForCheck = (model: string) => {
+  const plain = model.replace(/^gemini\//, '');
+  const mapped: Record<string, string> = {
+    'gemini-2.0-flash': 'gemini-2.5-flash',
+    'gemini-2.0-flash-exp': 'gemini-2.5-flash',
+  };
+  return mapped[plain] || plain;
+};
+
 const testAnthropic = async (apiKey: string, model: string) => {
   const result = { reachable: false, error: null as string | null };
   try {
@@ -59,7 +68,7 @@ const testAnthropic = async (apiKey: string, model: string) => {
 const testGemini = async (apiKey: string, model: string) => {
   const result = { reachable: false, error: null as string | null };
   try {
-    const endpoint = `${GEMINI_BASE_URL}/models/${model.replace(/^gemini\//, '')}:generateContent?key=${encodeURIComponent(apiKey)}`;
+    const endpoint = `${GEMINI_BASE_URL}/models/${normalizeGeminiModelForCheck(model)}:generateContent?key=${encodeURIComponent(apiKey)}`;
     const response = await fetch(endpoint, {
       method: 'POST',
       headers: {

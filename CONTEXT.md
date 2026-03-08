@@ -293,3 +293,5 @@ Expected response:
   Next: Redeploy and validate /chat workspace prompts return mixed email/event/file context without forcing fallback; then run Settings diagnostics for Anthropic/Gemini model checks.
 - [2026-03-07 21:32:50] [T1] [Done] Task: Hard reset pass: rebuilt /chat with expanded Anthropic+Gemini model catalog and persistent history/session IDs; added Microsoft token refresh API + client refresh flow + forced interactive OAuth prompt; injected workspace/email/file/event context into brain logic for cross-request outputs (draft/summarize/deck/excel/word/ppt); redesigned Apps page clean white UI and switched default theme to light.
   Next: Redeploy and test live flows: Apps OAuth reconnect, chat model selection, 'email -> Word/Excel/PPT export' prompts, and workspace link accuracy in responses.
+- [2026-03-08 06:28:46] [T1] [Done] Task: Web-grounded model compatibility pass: removed deprecated Gemini 2.0 from chat catalog and added server-side Gemini 2.0->2.5 normalization in openrouter and diagnostics.
+  Next: Redeploy backend and run Settings diagnostics + /chat smoke tests for Anthropic/Gemini and Microsoft workspace prompts.
