@@ -1,5 +1,3 @@
-'use client';
+import ChatPage from '@/app/chat/page';
 
-import ChatWindow from '@/components/ChatWindow';
-
-export default ChatWindow;
+export default ChatPage;

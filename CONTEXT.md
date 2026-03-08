@@ -283,3 +283,5 @@ Expected response:
   Next: User: redeploy and test workspace prompts that reference email+files+meetings in one query
 - [2026-03-07 17:32:22] [T1] [Done] Task: Removed Apps Recent Emails/Files/Meetings sections and related fetches to reduce OAuth noise and endpoint 500 spam
   Next: User: redeploy and re-test Microsoft connect with clean Apps UI
+- [2026-03-07 19:45:22] [T1] [Done] Task: Replaced legacy chat UI with a new simple workspace-first chat page (model chooser + optional web toggle), routed /c/[chatId] to the new page, and disabled legacy DB-backed /api/chats endpoints
+  Next: User: redeploy and validate new /chat flow with Microsoft token + selected model
