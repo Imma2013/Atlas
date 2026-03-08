@@ -23,6 +23,15 @@ export type BrainExecutionInput = {
   history?: Array<[string, string]>;
 };
 
+export type GeneratedDownload = {
+  kind: 'word' | 'excel' | 'powerpoint';
+  fileName: string;
+  mimeType: string;
+  contentBase64?: string;
+  webUrl?: string;
+  origin: 'microsoft' | 'local';
+};
+
 const mergeModels = (models?: Partial<RouterModelConfig>): RouterModelConfig => ({
   ...defaultRouterModelConfig,
   ...(models || {}),
@@ -64,6 +73,8 @@ const formatWorkspaceContext = (workspace: any) => {
 
   return JSON.stringify({ emails, files, events }, null, 2);
 };
+
+const toBase64 = (value: string) => Buffer.from(value, 'utf8').toString('base64');
 
 export const executeBrainFlow = async (input: BrainExecutionInput) => {
   const models = mergeModels(input.models);
@@ -137,6 +148,7 @@ export const executeBrainFlow = async (input: BrainExecutionInput) => {
   let activityType: 'meeting' | 'email' | 'file' | 'deck' | 'spreadsheet' | 'web_search' = 'web_search';
   let activityLinks: Record<string, string> = {};
   let output: unknown;
+  const downloads: GeneratedDownload[] = [];
 
   const wantsFileOutput = /\b(make|create|turn|convert|export|save)\b/i.test(input.query);
   const wantsWordOutput =
@@ -311,71 +323,145 @@ export const executeBrainFlow = async (input: BrainExecutionInput) => {
       };
   }
 
-  if (input.microsoftAccessToken && (wantsWordOutput || wantsExcelOutput || wantsPowerPointOutput)) {
+  if (wantsWordOutput || wantsExcelOutput || wantsPowerPointOutput) {
     const stampedDate = new Date().toISOString().slice(0, 10);
     const renderedOutput = typeof output === 'string' ? output : JSON.stringify(output, null, 2);
     const exportedLinks: string[] = [];
     const exportErrors: string[] = [];
+    const hasMicrosoftToken = Boolean(input.microsoftAccessToken);
 
     if (wantsWordOutput) {
-      try {
-        const doc = await createDriveFile({
-          accessToken: input.microsoftAccessToken,
-          fileName: `Atlas-Document-${stampedDate}.doc`,
-          content: `<!doctype html><html><head><meta charset="utf-8"></head><body><pre style="white-space:pre-wrap;font-family:Calibri,Arial,sans-serif;font-size:12pt;">${renderedOutput
-            .replace(/&/g, '&amp;')
-            .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;')}</pre></body></html>`,
-          contentType: 'text/html; charset=utf-8',
-        });
-        if (doc.webUrl) {
-          exportedLinks.push(`Word: ${doc.webUrl}`);
-          activityLinks.word = doc.webUrl;
-          activityLinks.onedrive = doc.webUrl;
+      const wordFileName = `Atlas-Document-${stampedDate}.doc`;
+      const wordContent = `<!doctype html><html><head><meta charset="utf-8"></head><body><pre style="white-space:pre-wrap;font-family:Calibri,Arial,sans-serif;font-size:12pt;">${renderedOutput
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')}</pre></body></html>`;
+      let cloudCreated = false;
+
+      if (hasMicrosoftToken) {
+        try {
+          const doc = await createDriveFile({
+            accessToken: input.microsoftAccessToken!,
+            fileName: wordFileName,
+            content: wordContent,
+            contentType: 'text/html; charset=utf-8',
+          });
+          if (doc.webUrl) {
+            cloudCreated = true;
+            exportedLinks.push(`Word: ${doc.webUrl}`);
+            activityLinks.word = doc.webUrl;
+            activityLinks.onedrive = doc.webUrl;
+            downloads.push({
+              kind: 'word',
+              fileName: wordFileName,
+              mimeType: 'text/html; charset=utf-8',
+              webUrl: doc.webUrl,
+              origin: 'microsoft',
+            });
+          }
+        } catch (error) {
+          const message = error instanceof Error ? error.message : 'Unknown error';
+          exportErrors.push(`Word export failed: ${message}`);
         }
-      } catch (error) {
-        const message = error instanceof Error ? error.message : 'Unknown error';
-        exportErrors.push(`Word export failed: ${message}`);
+      }
+
+      if (!cloudCreated) {
+        downloads.push({
+          kind: 'word',
+          fileName: wordFileName,
+          mimeType: 'text/html; charset=utf-8',
+          contentBase64: toBase64(wordContent),
+          origin: 'local',
+        });
+        exportedLinks.push(`Word (download): ${wordFileName}`);
       }
     }
 
     if (wantsExcelOutput) {
+      const excelFileName = `Atlas-Spreadsheet-${stampedDate}.csv`;
       const excelCsv = `Section,Details\n"Summary","${renderedOutput.replace(/"/g, '""').replace(/\n/g, ' ')}"`;
-      try {
-        const csv = await createDriveFile({
-          accessToken: input.microsoftAccessToken,
-          fileName: `Atlas-Spreadsheet-${stampedDate}.csv`,
-          content: excelCsv,
-          contentType: 'text/csv; charset=utf-8',
-        });
-        if (csv.webUrl) {
-          exportedLinks.push(`Excel (CSV): ${csv.webUrl}`);
-          activityLinks.excel = csv.webUrl;
-          activityLinks.onedrive = activityLinks.onedrive || csv.webUrl;
+      let cloudCreated = false;
+
+      if (hasMicrosoftToken) {
+        try {
+          const csv = await createDriveFile({
+            accessToken: input.microsoftAccessToken!,
+            fileName: excelFileName,
+            content: excelCsv,
+            contentType: 'text/csv; charset=utf-8',
+          });
+          if (csv.webUrl) {
+            cloudCreated = true;
+            exportedLinks.push(`Excel (CSV): ${csv.webUrl}`);
+            activityLinks.excel = csv.webUrl;
+            activityLinks.onedrive = activityLinks.onedrive || csv.webUrl;
+            downloads.push({
+              kind: 'excel',
+              fileName: excelFileName,
+              mimeType: 'text/csv; charset=utf-8',
+              webUrl: csv.webUrl,
+              origin: 'microsoft',
+            });
+          }
+        } catch (error) {
+          const message = error instanceof Error ? error.message : 'Unknown error';
+          exportErrors.push(`Excel export failed: ${message}`);
         }
-      } catch (error) {
-        const message = error instanceof Error ? error.message : 'Unknown error';
-        exportErrors.push(`Excel export failed: ${message}`);
+      }
+
+      if (!cloudCreated) {
+        downloads.push({
+          kind: 'excel',
+          fileName: excelFileName,
+          mimeType: 'text/csv; charset=utf-8',
+          contentBase64: toBase64(excelCsv),
+          origin: 'local',
+        });
+        exportedLinks.push(`Excel (download): ${excelFileName}`);
       }
     }
 
     if (wantsPowerPointOutput) {
+      const pptFileName = `Atlas-Deck-Outline-${stampedDate}.md`;
       const deckOutline = `# Atlas Deck Outline\n\n${renderedOutput}`;
-      try {
-        const deck = await createDriveFile({
-          accessToken: input.microsoftAccessToken,
-          fileName: `Atlas-Deck-Outline-${stampedDate}.md`,
-          content: deckOutline,
-          contentType: 'text/markdown; charset=utf-8',
-        });
-        if (deck.webUrl) {
-          exportedLinks.push(`PowerPoint outline: ${deck.webUrl}`);
-          activityLinks.powerpoint = deck.webUrl;
-          activityLinks.onedrive = activityLinks.onedrive || deck.webUrl;
+      let cloudCreated = false;
+
+      if (hasMicrosoftToken) {
+        try {
+          const deck = await createDriveFile({
+            accessToken: input.microsoftAccessToken!,
+            fileName: pptFileName,
+            content: deckOutline,
+            contentType: 'text/markdown; charset=utf-8',
+          });
+          if (deck.webUrl) {
+            cloudCreated = true;
+            exportedLinks.push(`PowerPoint outline: ${deck.webUrl}`);
+            activityLinks.powerpoint = deck.webUrl;
+            activityLinks.onedrive = activityLinks.onedrive || deck.webUrl;
+            downloads.push({
+              kind: 'powerpoint',
+              fileName: pptFileName,
+              mimeType: 'text/markdown; charset=utf-8',
+              webUrl: deck.webUrl,
+              origin: 'microsoft',
+            });
+          }
+        } catch (error) {
+          const message = error instanceof Error ? error.message : 'Unknown error';
+          exportErrors.push(`PowerPoint export failed: ${message}`);
         }
-      } catch (error) {
-        const message = error instanceof Error ? error.message : 'Unknown error';
-        exportErrors.push(`PowerPoint export failed: ${message}`);
+      }
+
+      if (!cloudCreated) {
+        downloads.push({
+          kind: 'powerpoint',
+          fileName: pptFileName,
+          mimeType: 'text/markdown; charset=utf-8',
+          contentBase64: toBase64(deckOutline),
+          origin: 'local',
+        });
+        exportedLinks.push(`PowerPoint outline (download): ${pptFileName}`);
       }
     }
 
@@ -407,5 +493,6 @@ export const executeBrainFlow = async (input: BrainExecutionInput) => {
     intent: effectiveIntent,
     output,
     modelUsed,
+    downloads,
   };
 };

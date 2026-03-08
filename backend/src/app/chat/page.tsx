@@ -8,6 +8,14 @@ import { Sparkles } from 'lucide-react';
 type ChatMessage = {
   role: 'user' | 'assistant';
   text: string;
+  downloads?: Array<{
+    kind: 'word' | 'excel' | 'powerpoint';
+    fileName: string;
+    mimeType: string;
+    contentBase64?: string;
+    webUrl?: string;
+    origin: 'microsoft' | 'local';
+  }>;
 };
 
 const getOrCreateUserId = () => {
@@ -36,6 +44,15 @@ const getOrCreateChatId = () => {
 
 const asHistory = (messages: ChatMessage[]) =>
   messages.map((message) => [message.role === 'user' ? 'human' : 'assistant', message.text] as [string, string]);
+
+const decodeBase64ToBytes = (base64: string) => {
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i += 1) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return bytes;
+};
 
 const ChatPage = () => {
   const [model, setModel] = useState(DEFAULT_CHAT_MODEL);
@@ -109,8 +126,9 @@ const ChatPage = () => {
         typeof data?.output === 'string'
           ? data.output
           : data?.output?.answer || JSON.stringify(data?.output ?? data, null, 2);
+      const downloads = Array.isArray(data?.downloads) ? data.downloads : [];
 
-      setMessages((prev) => [...prev, { role: 'assistant', text: output }]);
+      setMessages((prev) => [...prev, { role: 'assistant', text: output, downloads }]);
     } catch (e: any) {
       const message = e?.message || 'Chat request failed';
       setError(message);
@@ -208,6 +226,50 @@ const ChatPage = () => {
           >
             <p className="mb-1 text-xs uppercase tracking-wide text-black/50">{message.role}</p>
             <pre className="whitespace-pre-wrap break-words text-sm text-black">{message.text}</pre>
+            {message.role === 'assistant' && message.downloads && message.downloads.length > 0 ? (
+              <div className="mt-3 flex flex-wrap gap-2">
+                {message.downloads.map((download, downloadIndex) => {
+                  const label = `${download.kind.toUpperCase()}${download.origin === 'local' ? ' (Download)' : ' (Microsoft)'}`;
+                  if (download.webUrl) {
+                    return (
+                      <a
+                        key={`${download.fileName}-${downloadIndex}`}
+                        href={download.webUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="rounded-lg border border-light-200 bg-white px-3 py-1.5 text-xs text-black hover:bg-light-100"
+                      >
+                        {label}
+                      </a>
+                    );
+                  }
+
+                  return (
+                    <button
+                      key={`${download.fileName}-${downloadIndex}`}
+                      type="button"
+                      onClick={() => {
+                        if (!download.contentBase64) return;
+                        const blob = new Blob([decodeBase64ToBytes(download.contentBase64)], {
+                          type: download.mimeType || 'application/octet-stream',
+                        });
+                        const url = URL.createObjectURL(blob);
+                        const link = document.createElement('a');
+                        link.href = url;
+                        link.download = download.fileName;
+                        document.body.appendChild(link);
+                        link.click();
+                        link.remove();
+                        URL.revokeObjectURL(url);
+                      }}
+                      className="rounded-lg border border-light-200 bg-white px-3 py-1.5 text-xs text-black hover:bg-light-100"
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
+            ) : null}
           </div>
         ))}
       </div>

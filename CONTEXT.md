@@ -303,3 +303,5 @@ Expected response:
   Next: Commit/push and redeploy; then reconnect Microsoft and retest OAuth + 'make a word document'.
 - [2026-03-08 07:19:10] [T1] [Done] Task: Handled Supabase schema-missing errors (PGRST205) in usage/activity paths so chat fails open when ai_usage/activity_items/user_plans tables are absent; added missing-table detector in supabase helper.
   Next: Run Supabase migration 20260306190000_activity_usage_billing.sql in the connected project to restore usage/activity persistence and remove warnings.
+- [2026-03-08 07:41:25] [T1] [Done] Task: Implemented no-OneDrive export fallback in brain flow: when Microsoft drive export fails/unavailable, return local downloadable Word(.doc HTML), Excel(.csv), and PowerPoint outline(.md) payloads; updated /chat UI to render download/open buttons from response.downloads.
+  Next: Redeploy and test prompt: make Word+Excel+PowerPoint in one request; verify local download buttons appear when SPO/OneDrive is unavailable.
