@@ -55,6 +55,7 @@ export const getMicrosoftAuthUrl = (state?: string): string => {
     response_mode: 'query',
     scope,
     state: state || crypto.randomUUID(),
+    prompt: 'select_account',
   });
 
   return `https://login.microsoftonline.com/${tenant}/oauth2/v2.0/authorize?${params.toString()}`;
@@ -166,6 +167,46 @@ export const getDriveItemContent = async (accessToken: string, id: string) => {
   }
 
   return response.text();
+};
+
+export const refreshMicrosoftToken = async (refreshToken: string) => {
+  const tenant = process.env.MICROSOFT_TENANT_ID || 'common';
+  const clientId = process.env.MICROSOFT_CLIENT_ID;
+  const clientSecret = process.env.MICROSOFT_CLIENT_SECRET;
+  const redirectUri =
+    process.env.MICROSOFT_REDIRECT_URI ||
+    `${process.env.APP_URL || 'http://localhost:3000'}/microsoft/callback`;
+
+  if (!clientId || !clientSecret || !redirectUri) {
+    throw new Error('Missing Microsoft OAuth env vars');
+  }
+
+  const body = new URLSearchParams({
+    client_id: clientId,
+    client_secret: clientSecret,
+    grant_type: 'refresh_token',
+    refresh_token: refreshToken,
+    redirect_uri: redirectUri,
+  });
+
+  const response = await fetch(
+    `https://login.microsoftonline.com/${tenant}/oauth2/v2.0/token`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body,
+      cache: 'no-store',
+    },
+  );
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`Failed to refresh Microsoft token (${response.status}): ${text}`);
+  }
+
+  return response.json();
 };
 
 export const createDriveFile = async (input: {
@@ -355,14 +396,22 @@ export const searchWorkspace = async (accessToken: string, query: string) => {
       runGraphSearch('driveItem', 10),
     ]);
 
-    const pickResources = (response: PromiseSettledResult<GraphSearchResponse>) => {
+    const pickResources = (
+      response: PromiseSettledResult<GraphSearchResponse>,
+    ): Array<Record<string, any>> => {
       if (response.status !== 'fulfilled') {
-        return [] as Array<Record<string, any>>;
+        return [];
       }
 
       const containers = response.value?.value?.[0]?.hitsContainers || [];
       return containers.flatMap((container) =>
-        (container.hits || []).map((hit) => hit.resource || {}),
+        (container.hits || []).map((hit) => {
+          const resource = (hit.resource || {}) as Record<string, any>;
+          return {
+            ...resource,
+            summary: (hit as any)?.summary || '',
+          } as Record<string, any>;
+        }),
       );
     };
 

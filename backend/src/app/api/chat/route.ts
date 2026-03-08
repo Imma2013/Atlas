@@ -148,6 +148,7 @@ export const POST = async (req: Request) => {
         userId,
         microsoftAccessToken: microsoftAccessToken || undefined,
         sources: body.sources,
+        history: body.history,
         models: {
           routerModel:
             body.openRouterModels?.routerModel ||

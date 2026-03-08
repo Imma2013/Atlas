@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { storeMicrosoftTokens } from '@/lib/microsoftAuthClient';
 
 const MicrosoftCallbackPage = () => {
   const router = useRouter();
@@ -31,12 +32,7 @@ const MicrosoftCallbackPage = () => {
           throw new Error(payload?.message || 'Failed to complete Microsoft sign-in.');
         }
 
-        const expiresAt = Date.now() + Number(payload.tokens.expires_in || 3600) * 1000;
-        localStorage.setItem('atlasMicrosoftAccessToken', payload.tokens.access_token);
-        if (payload.tokens.refresh_token) {
-          localStorage.setItem('atlasMicrosoftRefreshToken', payload.tokens.refresh_token);
-        }
-        localStorage.setItem('atlasMicrosoftExpiresAt', String(expiresAt));
+        storeMicrosoftTokens(payload.tokens);
 
         router.replace('/apps?connected=1');
       } catch (oauthError: any) {
@@ -64,4 +60,3 @@ const MicrosoftCallbackPage = () => {
 };
 
 export default MicrosoftCallbackPage;
-

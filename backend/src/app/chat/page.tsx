@@ -1,19 +1,14 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { CHAT_MODEL_OPTIONS, DEFAULT_CHAT_MODEL } from '@/lib/modelCatalog';
+import { getMicrosoftAccessToken } from '@/lib/microsoftAuthClient';
+import { Sparkles } from 'lucide-react';
 
 type ChatMessage = {
   role: 'user' | 'assistant';
   text: string;
 };
-
-const MODEL_OPTIONS = [
-  { label: 'Claude Haiku 4.5 (Router/Cheap)', value: 'anthropic/claude-haiku-4.5' },
-  { label: 'Claude Sonnet 4 (Default)', value: 'anthropic/claude-sonnet-4' },
-  { label: 'Claude Opus 4 (Heavy)', value: 'anthropic/claude-opus-4' },
-  { label: 'Gemini 2.5 Flash', value: 'gemini/gemini-2.5-flash' },
-  { label: 'Gemini 2.5 Pro', value: 'gemini/gemini-2.5-pro' },
-];
 
 const getOrCreateUserId = () => {
   if (typeof window === 'undefined') return undefined;
@@ -27,19 +22,42 @@ const getOrCreateUserId = () => {
   return created;
 };
 
+const getOrCreateChatId = () => {
+  if (typeof window === 'undefined') return `chat-${Date.now()}`;
+  const existing = localStorage.getItem('atlasActiveChatId');
+  if (existing) return existing;
+  const created =
+    typeof crypto.randomUUID === 'function'
+      ? `chat-${crypto.randomUUID()}`
+      : `chat-${Date.now()}-${Math.random()}`;
+  localStorage.setItem('atlasActiveChatId', created);
+  return created;
+};
+
+const asHistory = (messages: ChatMessage[]) =>
+  messages.map((message) => [message.role === 'user' ? 'human' : 'assistant', message.text] as [string, string]);
+
 const ChatPage = () => {
-  const [model, setModel] = useState('anthropic/claude-sonnet-4');
+  const [model, setModel] = useState(DEFAULT_CHAT_MODEL);
   const [includeWeb, setIncludeWeb] = useState(false);
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
+  const groupedModels = useMemo(() => {
+    const groups = {
+      Anthropic: CHAT_MODEL_OPTIONS.filter((m) => m.provider === 'anthropic'),
+      Gemini: CHAT_MODEL_OPTIONS.filter((m) => m.provider === 'gemini'),
+    };
+    return groups;
+  }, []);
+
   const placeholder = useMemo(
     () =>
       includeWeb
-        ? 'Ask about your workspace, and optionally web context...'
-        : 'Ask about Outlook, Teams, OneDrive, Word, Excel, PowerPoint...',
+        ? 'Ask with workspace + web context (example: summarize this Teams meeting and compare with latest market updates).'
+        : 'Ask using Microsoft workspace only (example: draft a reply from Brad email and export to Word).',
     [includeWeb],
   );
 
@@ -48,10 +66,9 @@ const ChatPage = () => {
     if (!query || loading) return;
 
     const userId = getOrCreateUserId();
-    const microsoftAccessToken =
-      typeof window !== 'undefined'
-        ? localStorage.getItem('atlasMicrosoftAccessToken') || ''
-        : '';
+    const chatId = getOrCreateChatId();
+    const microsoftAccessToken = await getMicrosoftAccessToken();
+    const currentHistory = asHistory(messages);
 
     setError('');
     setLoading(true);
@@ -70,9 +87,10 @@ const ChatPage = () => {
         body: JSON.stringify({
           message: {
             messageId: `msg-${Date.now()}`,
-            chatId: `chat-${Date.now()}`,
+            chatId,
             content: query,
           },
+          history: currentHistory,
           brainMode: true,
           userId,
           sources: includeWeb ? ['workspace', 'web'] : ['workspace'],
@@ -90,42 +108,56 @@ const ChatPage = () => {
       const output =
         typeof data?.output === 'string'
           ? data.output
-          : JSON.stringify(data?.output ?? data, null, 2);
+          : data?.output?.answer || JSON.stringify(data?.output ?? data, null, 2);
 
       setMessages((prev) => [...prev, { role: 'assistant', text: output }]);
     } catch (e: any) {
       const message = e?.message || 'Chat request failed';
       setError(message);
-      setMessages((prev) => [
-        ...prev,
-        { role: 'assistant', text: `Error: ${message}` },
-      ]);
+      setMessages((prev) => [...prev, { role: 'assistant', text: `Error: ${message}` }]);
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="mx-auto max-w-4xl px-4 py-8">
-      <h1 className="text-3xl font-semibold text-black dark:text-white">Chat</h1>
-      <p className="mt-1 text-sm text-black/60 dark:text-white/60">
-        Workspace-first AI with optional web search.
-      </p>
+    <div className="mx-auto max-w-5xl px-4 py-8 md:px-6">
+      <div className="rounded-2xl border border-light-200 bg-white p-5 shadow-sm">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h1 className="text-3xl font-semibold text-black">Atlas Chat</h1>
+            <p className="mt-1 text-sm text-black/60">
+              Workspace-first assistant with direct Word, Excel, PowerPoint, and draft workflows.
+            </p>
+          </div>
+          <div className="inline-flex items-center gap-1 rounded-full bg-sky-50 px-3 py-1 text-xs text-sky-700">
+            <Sparkles size={14} />
+            Brain mode active
+          </div>
+        </div>
 
-      <div className="mt-5 rounded-xl border border-light-200 dark:border-dark-200 bg-light-primary dark:bg-dark-primary p-4">
-        <div className="grid gap-3 md:grid-cols-3">
+        <div className="mt-5 grid gap-3 md:grid-cols-3">
           <label className="md:col-span-2">
-            <span className="mb-1 block text-sm text-black/70 dark:text-white/70">Model</span>
+            <span className="mb-1 block text-sm text-black/70">Chat model</span>
             <select
               value={model}
               onChange={(e) => setModel(e.target.value)}
-              className="w-full rounded-lg border border-light-200 dark:border-dark-200 bg-transparent px-3 py-2 text-sm"
+              className="w-full rounded-xl border border-light-200 bg-white px-3 py-2 text-sm"
             >
-              {MODEL_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
+              <optgroup label="Anthropic">
+                {groupedModels.Anthropic.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </optgroup>
+              <optgroup label="Gemini">
+                {groupedModels.Gemini.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </optgroup>
             </select>
           </label>
 
@@ -135,7 +167,7 @@ const ChatPage = () => {
               checked={includeWeb}
               onChange={(e) => setIncludeWeb(e.target.checked)}
             />
-            <span className="text-sm text-black/80 dark:text-white/80">Enable Web Search</span>
+            <span className="text-sm text-black/80">Enable web source</span>
           </label>
         </div>
 
@@ -150,20 +182,18 @@ const ChatPage = () => {
               }
             }}
             placeholder={placeholder}
-            className="flex-1 rounded-lg border border-light-200 dark:border-dark-200 bg-transparent px-3 py-2 text-sm"
+            className="flex-1 rounded-xl border border-light-200 bg-white px-3 py-2 text-sm"
           />
           <button
             onClick={submit}
             disabled={loading}
-            className="rounded-lg bg-sky-500 px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
+            className="rounded-xl bg-sky-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
           >
             {loading ? 'Running...' : 'Send'}
           </button>
         </div>
 
-        {error ? (
-          <p className="mt-2 text-sm text-red-500">{error}</p>
-        ) : null}
+        {error ? <p className="mt-2 text-sm text-red-600">{error}</p> : null}
       </div>
 
       <div className="mt-5 space-y-3">
@@ -172,16 +202,12 @@ const ChatPage = () => {
             key={`${message.role}-${index}`}
             className={`rounded-xl border p-3 ${
               message.role === 'user'
-                ? 'border-sky-500/40 bg-sky-500/10'
-                : 'border-light-200 dark:border-dark-200 bg-light-primary dark:bg-dark-primary'
+                ? 'border-sky-200 bg-sky-50'
+                : 'border-light-200 bg-white'
             }`}
           >
-            <p className="mb-1 text-xs uppercase tracking-wide text-black/50 dark:text-white/50">
-              {message.role}
-            </p>
-            <pre className="whitespace-pre-wrap break-words text-sm text-black dark:text-white">
-              {message.text}
-            </pre>
+            <p className="mb-1 text-xs uppercase tracking-wide text-black/50">{message.role}</p>
+            <pre className="whitespace-pre-wrap break-words text-sm text-black">{message.text}</pre>
           </div>
         ))}
       </div>

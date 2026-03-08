@@ -22,7 +22,7 @@ export const defaultRouterModelConfig: RouterModelConfig = {
   routerModel:
     process.env.ATLAS_ROUTER_MODEL ||
     process.env.OPENROUTER_ROUTER_MODEL ||
-    (hasGemini ? 'gemini/gemini-2.5-flash-lite' : 'anthropic/claude-haiku-4.5'),
+    (hasGemini ? 'gemini/gemini-2.5-flash-lite' : 'anthropic/claude-3-5-haiku-20241022'),
   midModel:
     process.env.ATLAS_MID_MODEL ||
     process.env.OPENROUTER_MID_MODEL ||

@@ -16,6 +16,7 @@ const normalizeAnthropicModelForCheck = (model: string) => {
     'claude-sonnet-4.6': 'claude-sonnet-4-20250514',
     'claude-sonnet-4.5': 'claude-sonnet-4-20250514',
     'claude-sonnet-4': 'claude-sonnet-4-20250514',
+    'claude-3-7-sonnet': 'claude-3-7-sonnet-20250219',
     'claude-opus-4.6': 'claude-opus-4-1-20250805',
     'claude-opus-4.1': 'claude-opus-4-1-20250805',
     'claude-opus-4': 'claude-opus-4-1-20250805',
@@ -87,7 +88,7 @@ export const GET = async () => {
 
   const routerModel =
     process.env.ATLAS_ROUTER_MODEL ||
-    (process.env.GEMINI_API_KEY ? 'gemini/gemini-2.5-flash-lite' : 'anthropic/claude-haiku-4.5');
+    (process.env.GEMINI_API_KEY ? 'gemini/gemini-2.5-flash-lite' : 'anthropic/claude-3-5-haiku-20241022');
   const midModel = process.env.ATLAS_MID_MODEL || 'anthropic/claude-sonnet-4-20250514';
   const bigModel = process.env.ATLAS_BIG_MODEL || 'anthropic/claude-opus-4-1-20250805';
 

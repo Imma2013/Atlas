@@ -20,12 +20,50 @@ export type BrainExecutionInput = {
   userId?: string;
   models?: Partial<RouterModelConfig>;
   sources?: string[];
+  history?: Array<[string, string]>;
 };
 
 const mergeModels = (models?: Partial<RouterModelConfig>): RouterModelConfig => ({
   ...defaultRouterModelConfig,
   ...(models || {}),
 });
+
+const formatHistoryContext = (history: Array<[string, string]> = []) => {
+  if (history.length === 0) return '';
+
+  const recent = history.slice(-6);
+  return recent
+    .map(([role, text]) => `${role === 'human' ? 'User' : 'Assistant'}: ${text}`)
+    .join('\n');
+};
+
+const formatWorkspaceContext = (workspace: any) => {
+  const emails = (workspace?.emails || []).slice(0, 3).map((item: any) => ({
+    subject: item.subject || '',
+    preview: item.bodyPreview || item.summary || '',
+    from:
+      item.from?.emailAddress?.name ||
+      item.from?.emailAddress?.address ||
+      item.sender?.emailAddress?.address ||
+      '',
+    link: item.links?.outlook || item.webLink || '',
+  }));
+
+  const files = (workspace?.files || []).slice(0, 3).map((item: any) => ({
+    name: item.name || '',
+    summary: item.summary || '',
+    link: item.links?.onedrive || item.webUrl || '',
+  }));
+
+  const events = (workspace?.events || []).slice(0, 3).map((item: any) => ({
+    subject: item.subject || '',
+    start: item.start?.dateTime || '',
+    end: item.end?.dateTime || '',
+    link: item.links?.teams || item.onlineMeetingUrl || item.webLink || '',
+  }));
+
+  return JSON.stringify({ emails, files, events }, null, 2);
+};
 
 export const executeBrainFlow = async (input: BrainExecutionInput) => {
   const models = mergeModels(input.models);
@@ -63,6 +101,37 @@ export const executeBrainFlow = async (input: BrainExecutionInput) => {
       blocked: true,
     };
   }
+
+  const conversationContext = formatHistoryContext(input.history);
+  let workspaceSnapshot: any = null;
+
+  if (workspaceEnabled && input.microsoftAccessToken) {
+    try {
+      workspaceSnapshot = await searchWorkspace({
+        accessToken: input.microsoftAccessToken,
+        query: input.query,
+      });
+    } catch {
+      workspaceSnapshot = null;
+    }
+  }
+
+  const workspaceContextText = workspaceSnapshot
+    ? formatWorkspaceContext(workspaceSnapshot)
+    : '';
+
+  const buildContextualPrompt = (task: string) =>
+    [
+      task,
+      conversationContext ? `Recent conversation:\n${conversationContext}` : '',
+      workspaceContextText
+        ? `Workspace context (emails/files/events):\n${workspaceContextText}`
+        : '',
+      `Current request:\n${input.query}`,
+    ]
+      .filter(Boolean)
+      .join('\n\n');
+
   let actionType: AIActionType = 'summary';
   let modelUsed = models.midModel;
   let activityType: 'meeting' | 'email' | 'file' | 'deck' | 'spreadsheet' | 'web_search' = 'web_search';
@@ -84,7 +153,7 @@ export const executeBrainFlow = async (input: BrainExecutionInput) => {
       activityType = 'meeting';
       activityLinks = { teams: 'https://teams.microsoft.com' };
       output = await summarizeText({
-        content: input.query,
+        content: buildContextualPrompt('Summarize the meeting and list clear action items.'),
         context: 'a meeting transcript or notes',
         model: models.midModel,
       });
@@ -95,7 +164,9 @@ export const executeBrainFlow = async (input: BrainExecutionInput) => {
       activityType = 'email';
       activityLinks = { outlook: 'https://outlook.office.com/mail/' };
       output = await summarizeText({
-        content: input.query,
+        content: buildContextualPrompt(
+          'Summarize the relevant email thread and include decisions, asks, and follow-ups.',
+        ),
         context: 'an email thread',
         model: models.midModel,
       });
@@ -106,7 +177,9 @@ export const executeBrainFlow = async (input: BrainExecutionInput) => {
       activityType = 'file';
       activityLinks = { word: 'https://www.office.com/launch/word' };
       output = await summarizeText({
-        content: input.query,
+        content: buildContextualPrompt(
+          'Summarize the relevant file content and highlight key facts, deadlines, and risks.',
+        ),
         context: 'a file',
         model: models.midModel,
       });
@@ -125,10 +198,10 @@ export const executeBrainFlow = async (input: BrainExecutionInput) => {
       actionType = 'search';
       modelUsed = models.midModel;
       activityType = 'file';
-      output = await searchWorkspace({
+      output = workspaceSnapshot || (await searchWorkspace({
         accessToken: input.microsoftAccessToken,
         query: input.query,
-      });
+      }));
       {
         const workspace = output as any;
         activityLinks = {
@@ -139,6 +212,26 @@ export const executeBrainFlow = async (input: BrainExecutionInput) => {
           teams:
             workspace?.events?.[0]?.links?.teams || 'https://teams.microsoft.com',
         };
+
+        const concise = await callOpenRouterChat({
+          model: models.midModel,
+          temperature: 0.2,
+          maxTokens: 900,
+          messages: [
+            {
+              role: 'system',
+              content: `${GROUNDED_SYSTEM_RULES}\nAnswer using only workspace context. Include working links under a "Links" section.`,
+            },
+            {
+              role: 'user',
+              content: buildContextualPrompt(
+                'Use the workspace results to answer the request clearly and directly.',
+              ),
+            },
+          ],
+        });
+
+        output = concise;
       }
       break;
     case 'search_web':
@@ -163,8 +256,15 @@ export const executeBrainFlow = async (input: BrainExecutionInput) => {
         model: models.midModel,
         temperature: 0.3,
         messages: [
-          { role: 'system', content: 'Draft a concise professional email.' },
-          { role: 'user', content: input.query },
+          {
+            role: 'system',
+            content:
+              `${GROUNDED_SYSTEM_RULES}\nDraft a concise professional email. If sender/recipient context exists, use it.`,
+          },
+          {
+            role: 'user',
+            content: buildContextualPrompt('Draft the requested email.'),
+          },
         ],
       });
       break;
@@ -175,7 +275,9 @@ export const executeBrainFlow = async (input: BrainExecutionInput) => {
       activityLinks = { powerpoint: 'https://www.office.com/launch/powerpoint' };
       output = await generateDeckOutline({
         topic: input.query,
-        source: input.query,
+        source: buildContextualPrompt(
+          'Generate a clear presentation outline with title slide, core narrative, and next steps.',
+        ),
         model: models.bigModel,
       });
       break;
@@ -192,7 +294,12 @@ export const executeBrainFlow = async (input: BrainExecutionInput) => {
             role: 'system',
             content: `${GROUNDED_SYSTEM_RULES}\nAnalyze spreadsheet context and return key metrics, trends, risks, and recommended actions.`,
           },
-          { role: 'user', content: input.query },
+          {
+            role: 'user',
+            content: buildContextualPrompt(
+              'Analyze the available spreadsheet/email/file context and produce a compact executive analysis.',
+            ),
+          },
         ],
       });
       break;
