@@ -1,4 +1,8 @@
-import { hasSupabaseAdmin, supabaseAdminRequest } from '@/lib/supabase';
+import {
+  hasSupabaseAdmin,
+  isSupabaseMissingTableError,
+  supabaseAdminRequest,
+} from '@/lib/supabase';
 
 export type ActivityType = 'meeting' | 'email' | 'file' | 'deck' | 'spreadsheet' | 'web_search';
 
@@ -17,19 +21,27 @@ export const createActivityItem = async (input: {
     return;
   }
 
-  await supabaseAdminRequest({
-    path: 'activity_items',
-    method: 'POST',
-    body: {
-      user_id: input.userId,
-      type: input.type,
-      source_id: input.sourceId,
-      title: input.title,
-      summary: input.summary,
-      action_items: input.actionItems || [],
-      decisions: input.decisions || [],
-      links: input.links || {},
-      model_used: input.modelUsed,
-    },
-  });
+  try {
+    await supabaseAdminRequest({
+      path: 'activity_items',
+      method: 'POST',
+      body: {
+        user_id: input.userId,
+        type: input.type,
+        source_id: input.sourceId,
+        title: input.title,
+        summary: input.summary,
+        action_items: input.actionItems || [],
+        decisions: input.decisions || [],
+        links: input.links || {},
+        model_used: input.modelUsed,
+      },
+    });
+  } catch (error) {
+    if (isSupabaseMissingTableError(error, 'activity_items')) {
+      console.warn('Missing Supabase table public.activity_items. Activity event was not recorded.');
+      return;
+    }
+    throw error;
+  }
 };

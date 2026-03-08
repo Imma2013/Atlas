@@ -301,3 +301,5 @@ Expected response:
   Next: Redeploy and validate chat no longer throws client-side assistant error on export failures.
 - [2026-03-08 07:06:07] [T1] [Done] Task: Normalized Microsoft redirect URIs to canonical single-slash paths even when MICROSOFT_REDIRECT_URI is misconfigured with double slashes; updated diagnostics to compare normalized URI.
   Next: Commit/push and redeploy; then reconnect Microsoft and retest OAuth + 'make a word document'.
+- [2026-03-08 07:19:10] [T1] [Done] Task: Handled Supabase schema-missing errors (PGRST205) in usage/activity paths so chat fails open when ai_usage/activity_items/user_plans tables are absent; added missing-table detector in supabase helper.
+  Next: Run Supabase migration 20260306190000_activity_usage_billing.sql in the connected project to restore usage/activity persistence and remove warnings.

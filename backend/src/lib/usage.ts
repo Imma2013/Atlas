@@ -1,5 +1,9 @@
 import { PlanTier, PLAN_CONFIGS } from '@/lib/plans';
-import { hasSupabaseAdmin, supabaseAdminRequest } from '@/lib/supabase';
+import {
+  hasSupabaseAdmin,
+  isSupabaseMissingTableError,
+  supabaseAdminRequest,
+} from '@/lib/supabase';
 
 export type AIActionType = 'summary' | 'draft' | 'search' | 'deck' | 'analysis';
 
@@ -19,14 +23,23 @@ export const getUserPlanTier = async (userId: string): Promise<PlanTier> => {
     return 'free';
   }
 
-  const rows = await supabaseAdminRequest<UserPlanRow[]>({
-    path: 'user_plans',
-    query: {
-      user_id: `eq.${userId}`,
-      select: 'user_id,tier',
-      limit: '1',
-    },
-  });
+  let rows: UserPlanRow[] = [];
+  try {
+    rows = await supabaseAdminRequest<UserPlanRow[]>({
+      path: 'user_plans',
+      query: {
+        user_id: `eq.${userId}`,
+        select: 'user_id,tier',
+        limit: '1',
+      },
+    });
+  } catch (error) {
+    if (isSupabaseMissingTableError(error, 'user_plans')) {
+      console.warn('Missing Supabase table public.user_plans. Defaulting plan tier to free.');
+      return 'free';
+    }
+    throw error;
+  }
 
   return rows[0]?.tier || 'free';
 };
@@ -36,15 +49,24 @@ export const getMonthlyUsageCount = async (userId: string): Promise<number> => {
     return 0;
   }
 
-  const rows = await supabaseAdminRequest<Array<{ id: string }>>({
-    path: 'ai_usage',
-    query: {
-      user_id: `eq.${userId}`,
-      created_at: `gte.${getMonthStartISOString()}`,
-      select: 'id',
-      limit: '5000',
-    },
-  });
+  let rows: Array<{ id: string }> = [];
+  try {
+    rows = await supabaseAdminRequest<Array<{ id: string }>>({
+      path: 'ai_usage',
+      query: {
+        user_id: `eq.${userId}`,
+        created_at: `gte.${getMonthStartISOString()}`,
+        select: 'id',
+        limit: '5000',
+      },
+    });
+  } catch (error) {
+    if (isSupabaseMissingTableError(error, 'ai_usage')) {
+      console.warn('Missing Supabase table public.ai_usage. Skipping usage cap checks.');
+      return 0;
+    }
+    throw error;
+  }
 
   return rows.length;
 };
@@ -75,17 +97,25 @@ export const recordAIUsage = async (input: {
     return;
   }
 
-  await supabaseAdminRequest({
-    path: 'ai_usage',
-    method: 'POST',
-    body: {
-      user_id: input.userId,
-      action_type: input.actionType,
-      model_used: input.modelUsed,
-      tokens_in: input.tokensIn || 0,
-      tokens_out: input.tokensOut || 0,
-    },
-  });
+  try {
+    await supabaseAdminRequest({
+      path: 'ai_usage',
+      method: 'POST',
+      body: {
+        user_id: input.userId,
+        action_type: input.actionType,
+        model_used: input.modelUsed,
+        tokens_in: input.tokensIn || 0,
+        tokens_out: input.tokensOut || 0,
+      },
+    });
+  } catch (error) {
+    if (isSupabaseMissingTableError(error, 'ai_usage')) {
+      console.warn('Missing Supabase table public.ai_usage. Usage event was not recorded.');
+      return;
+    }
+    throw error;
+  }
 };
 
 export const upsertUserPlan = async (input: {

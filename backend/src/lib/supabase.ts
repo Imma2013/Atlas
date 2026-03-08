@@ -12,6 +12,29 @@ export const hasSupabaseAdmin = () => {
   return Boolean(url && serviceKey);
 };
 
+const asErrorText = (error: unknown) =>
+  error instanceof Error ? error.message : String(error || '');
+
+export const isSupabaseMissingTableError = (
+  error: unknown,
+  table?: string,
+) => {
+  const text = asErrorText(error);
+  if (!text.includes('PGRST205')) {
+    return false;
+  }
+
+  if (!table) {
+    return true;
+  }
+
+  return (
+    text.includes(`'public.${table}'`) ||
+    text.includes(`"${table}"`) ||
+    text.includes(`'${table}'`)
+  );
+};
+
 export const supabaseAdminRequest = async <T>(input: {
   path: string;
   method?: SupabaseMethod;
