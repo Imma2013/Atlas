@@ -38,7 +38,9 @@ const GoogleCallbackPage = () => {
 
         storeGoogleTokens(payload.tokens);
         const app = payload?.app || parseGoogleOAuthState(state).app || '';
-        router.replace(`/apps?google_connected=1${app ? `&google_app=${encodeURIComponent(app)}` : ''}`);
+        router.replace(
+          `/settings?tab=connections&google_connected=1${app ? `&google_app=${encodeURIComponent(app)}` : ''}`,
+        );
       } catch (oauthError: any) {
         setError(oauthError?.message || 'Google sign-in failed.');
       }
@@ -55,7 +57,7 @@ const GoogleCallbackPage = () => {
           <p className="mt-2 text-sm text-red-500">{error}</p>
         ) : (
           <p className="mt-2 text-sm text-black/65 dark:text-white/65">
-            Finishing sign-in and redirecting back to Apps...
+            Finishing sign-in and redirecting back to Settings...
           </p>
         )}
       </div>
@@ -64,4 +66,3 @@ const GoogleCallbackPage = () => {
 };
 
 export default GoogleCallbackPage;
-

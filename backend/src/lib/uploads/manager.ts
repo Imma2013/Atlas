@@ -7,7 +7,14 @@ import { PDFParse } from 'pdf-parse';
 import { CanvasFactory } from 'pdf-parse/worker';
 import officeParser from 'officeparser'
 
-const supportedMimeTypes = ['application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'text/plain'] as const
+const supportedMimeTypes = [
+    'application/pdf',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'text/plain',
+    'image/png',
+    'image/jpeg',
+    'image/webp',
+] as const
 
 type SupportedMimeType = typeof supportedMimeTypes[number];
 
@@ -169,6 +176,28 @@ class UploadManager {
                 fs.writeFileSync(docContentPath, JSON.stringify(docData, null, 2));
 
                 return docContentPath;
+            case 'image/png':
+            case 'image/jpeg':
+            case 'image/webp':
+                const imagePlaceholder = `Image uploaded: ${path.basename(filePath)}. Use this as visual reference context.`;
+                const imageEmbeddings = await this.embeddingModel.embedText([imagePlaceholder]);
+                const imageContentPath = filePath.split('.').slice(0, -1).join('.') + '.content.json';
+                fs.writeFileSync(
+                    imageContentPath,
+                    JSON.stringify(
+                        {
+                            chunks: [
+                                {
+                                    content: imagePlaceholder,
+                                    embedding: imageEmbeddings[0],
+                                },
+                            ],
+                        },
+                        null,
+                        2,
+                    ),
+                );
+                return imageContentPath;
             default:
                 throw new Error(`Unsupported file type: ${fileType}`);
         }

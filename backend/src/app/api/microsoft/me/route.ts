@@ -1,4 +1,4 @@
-import { getCurrentUser } from '@/lib/microsoft';
+﻿import { getCurrentUser } from '@/lib/microsoft';
 
 export const runtime = 'nodejs';
 
@@ -23,7 +23,7 @@ export const GET = async (req: Request) => {
     return Response.json(
       {
         message: unauthorized
-          ? 'Microsoft token is expired or invalid. Reconnect Microsoft in Apps.'
+          ? 'Microsoft token is expired or invalid. Reconnect Microsoft in Settings > Connections.'
           : 'Failed to fetch Microsoft profile',
         error: error?.message || 'Unknown error',
       },
@@ -31,3 +31,4 @@ export const GET = async (req: Request) => {
     );
   }
 };
+

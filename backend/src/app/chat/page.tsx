@@ -14,7 +14,16 @@ import {
 } from '@/lib/microsoftAuthClient';
 import type { GoogleAppKey } from '@/lib/googleScopes';
 import type { MicrosoftAppKey } from '@/lib/microsoftScopes';
-import { Check, ChevronDown, Globe, Link2, Plus, SendHorizonal, X } from 'lucide-react';
+import {
+  Check,
+  ChevronDown,
+  Globe,
+  Link2,
+  Paperclip,
+  Plus,
+  SendHorizonal,
+  X,
+} from 'lucide-react';
 
 type PendingDraft = {
   provider: 'outlook' | 'gmail';
@@ -60,6 +69,13 @@ type ChatSessionSnapshot = {
   includeWeb: boolean;
   input: string;
   messages: ChatMessage[];
+  uploadedFiles: UploadedFile[];
+};
+
+type UploadedFile = {
+  fileId: string;
+  fileName: string;
+  fileExtension: string;
 };
 
 let inMemoryChatSession: ChatSessionSnapshot | null = null;
@@ -67,6 +83,8 @@ let inMemoryChatSession: ChatSessionSnapshot | null = null;
 const GOOGLE_CONNECTORS_ENABLED =
   process.env.NEXT_PUBLIC_ENABLE_GOOGLE_CONNECTORS === 'true';
 const LOCAL_ACTIVITY_KEY = 'atlasLocalActivity';
+const EMBEDDING_MODEL_KEY = 'openrouter-default';
+const EMBEDDING_PROVIDER_ID = 'openrouter';
 
 const defaultConnectorState: ConnectorState = {
   microsoft: {
@@ -252,12 +270,17 @@ const ChatPage = () => {
   const [messages, setMessages] = useState<ChatMessage[]>(
     () => inMemoryChatSession?.messages ?? [],
   );
+  const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>(
+    () => inMemoryChatSession?.uploadedFiles ?? [],
+  );
+  const [uploading, setUploading] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [connectorOpen, setConnectorOpen] = useState(false);
   const [connectingKey, setConnectingKey] = useState<string>('');
   const [connectors, setConnectors] = useState<ConnectorState>(defaultConnectorState);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const refreshConnections = async () => {
     const microsoftToken = await getMicrosoftAccessToken();
@@ -300,8 +323,9 @@ const ChatPage = () => {
       includeWeb,
       input,
       messages,
+      uploadedFiles,
     };
-  }, [includeWeb, input, messages]);
+  }, [includeWeb, input, messages, uploadedFiles]);
 
   useEffect(() => {
     if (searchParams.get('fromActivity') !== '1') return;
@@ -331,6 +355,7 @@ const ChatPage = () => {
       setError('');
       setLoading(false);
       setInput('');
+      setUploadedFiles([]);
       localStorage.setItem('atlasActiveChatId', `activity-${item.id}`);
     } catch {
       // Ignore malformed activity payloads.
@@ -344,13 +369,13 @@ const ChatPage = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
   }, [messages, loading]);
 
-  const connectMicrosoft = async (app: MicrosoftAppKey) => {
-    setConnectingKey(`ms:${app}`);
+  const connectMicrosoft = async () => {
+    setConnectingKey('ms:all');
     setError('');
     try {
       const nonce = crypto.randomUUID();
       const response = await fetch(
-        `/api/microsoft/auth?state=${encodeURIComponent(nonce)}&app=${encodeURIComponent(app)}`,
+        `/api/microsoft/auth?state=${encodeURIComponent(nonce)}&app=all`,
       );
       const payload = await response.json().catch(() => ({}));
       if (!response.ok || !payload?.authUrl) {
@@ -381,6 +406,51 @@ const ChatPage = () => {
       setError(e?.message || 'Google connect failed');
       setConnectingKey('');
     }
+  };
+
+  const uploadFiles = async (files: FileList | null) => {
+    if (!files || files.length === 0 || uploading) return;
+
+    const formData = new FormData();
+    Array.from(files).forEach((file) => {
+      formData.append('files', file);
+    });
+    formData.append('embedding_model_key', EMBEDDING_MODEL_KEY);
+    formData.append('embedding_model_provider_id', EMBEDDING_PROVIDER_ID);
+
+    setUploading(true);
+    setError('');
+    try {
+      const response = await fetch('/api/uploads', {
+        method: 'POST',
+        body: formData,
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(payload?.message || 'File upload failed');
+      }
+
+      const parsed = Array.isArray(payload?.files) ? (payload.files as UploadedFile[]) : [];
+      setUploadedFiles((prev) => {
+        const merged = [...prev, ...parsed];
+        const unique = merged.filter(
+          (item, index) =>
+            merged.findIndex((ref) => ref.fileId === item.fileId) === index,
+        );
+        return unique.slice(0, 8);
+      });
+    } catch (e: any) {
+      setError(e?.message || 'File upload failed');
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
+
+  const removeUploadedFile = (fileId: string) => {
+    setUploadedFiles((prev) => prev.filter((file) => file.fileId !== fileId));
   };
 
   const submit = async () => {
@@ -416,6 +486,7 @@ const ChatPage = () => {
           brainMode: true,
           userId,
           sources: includeWeb ? ['workspace', 'web'] : ['workspace'],
+          files: uploadedFiles.map((file) => file.fileId),
         }),
       });
 
@@ -545,7 +616,7 @@ const ChatPage = () => {
       label: item.label,
       icon: item.icon,
       state: connectors.microsoft[item.key],
-      run: () => connectMicrosoft(item.key),
+      run: () => connectMicrosoft(),
       provider: 'ms' as const,
     }));
 
@@ -562,6 +633,22 @@ const ChatPage = () => {
 
     return [...msRows, ...gRows];
   }, [connectors]);
+
+  const getDownloadIcon = (download: NonNullable<ChatMessage['downloads']>[number]) => {
+    if (download.origin === 'google') {
+      if (download.kind === 'word') {
+        return 'https://ssl.gstatic.com/docs/doclist/images/mediatype/icon_1_document_x32.png';
+      }
+      if (download.kind === 'excel') {
+        return 'https://ssl.gstatic.com/docs/doclist/images/mediatype/icon_1_spreadsheet_x32.png';
+      }
+      return 'https://ssl.gstatic.com/docs/doclist/images/mediatype/icon_1_presentation_x32.png';
+    }
+
+    if (download.kind === 'word') return '/apps/word.svg';
+    if (download.kind === 'excel') return '/apps/excel.svg';
+    return '/apps/powerpoint.svg';
+  };
 
   return (
     <div className="mx-auto flex h-[calc(100vh-1rem)] max-w-6xl flex-col px-3 py-3 md:px-6 md:py-5">
@@ -678,8 +765,13 @@ const ChatPage = () => {
                                 href={download.webUrl}
                                 target="_blank"
                                 rel="noreferrer"
-                                className="rounded-lg border border-black/10 bg-white px-3 py-1.5 text-xs text-sky-700 underline underline-offset-2 hover:bg-light-100 dark:border-white/20 dark:bg-white/[0.04]"
+                                className="inline-flex items-center gap-1.5 rounded-lg border border-black/10 bg-white px-3 py-1.5 text-xs text-sky-700 underline underline-offset-2 hover:bg-light-100 dark:border-white/20 dark:bg-white/[0.04]"
                               >
+                                <img
+                                  src={getDownloadIcon(download)}
+                                  alt={`${download.kind} logo`}
+                                  className="h-3.5 w-3.5 rounded-sm"
+                                />
                                 {label}
                               </a>
                             );
@@ -703,8 +795,13 @@ const ChatPage = () => {
                                 link.remove();
                                 setTimeout(() => URL.revokeObjectURL(url), 1200);
                               }}
-                              className="rounded-lg border border-black/10 bg-white px-3 py-1.5 text-xs text-black hover:bg-light-100 dark:border-white/20 dark:bg-white/[0.04] dark:text-white"
+                              className="inline-flex items-center gap-1.5 rounded-lg border border-black/10 bg-white px-3 py-1.5 text-xs text-black hover:bg-light-100 dark:border-white/20 dark:bg-white/[0.04] dark:text-white"
                             >
+                              <img
+                                src={getDownloadIcon(download)}
+                                alt={`${download.kind} logo`}
+                                className="h-3.5 w-3.5 rounded-sm"
+                              />
                               {label}
                             </button>
                           );
@@ -721,6 +818,35 @@ const ChatPage = () => {
         )}
 
         <div className="sticky bottom-0 mt-3 shrink-0 rounded-3xl border border-black/10 bg-white/90 p-3 backdrop-blur-md shadow-[0_18px_40px_-30px_rgba(0,0,0,0.65)] dark:border-white/10 dark:bg-black/55">
+          {uploadedFiles.length > 0 ? (
+            <div className="mb-2 flex flex-wrap gap-2">
+              {uploadedFiles.map((file) => (
+                <span
+                  key={file.fileId}
+                  className="inline-flex items-center gap-1 rounded-full border border-black/10 bg-black/[0.03] px-2 py-1 text-[11px] text-black/75 dark:border-white/15 dark:bg-white/[0.04] dark:text-white/80"
+                >
+                  <Paperclip size={11} />
+                  {file.fileName}
+                  <button
+                    type="button"
+                    onClick={() => removeUploadedFile(file.fileId)}
+                    className="rounded-full p-0.5 hover:bg-black/10 dark:hover:bg-white/20"
+                    aria-label={`Remove ${file.fileName}`}
+                  >
+                    <X size={10} />
+                  </button>
+                </span>
+              ))}
+            </div>
+          ) : null}
+          <input
+            ref={fileInputRef}
+            type="file"
+            multiple
+            accept=".pdf,.docx,.txt,image/png,image/jpeg,image/webp"
+            className="hidden"
+            onChange={(event) => uploadFiles(event.target.files)}
+          />
           <textarea
             value={input}
             onChange={(e) => setInput(e.target.value)}
@@ -736,6 +862,15 @@ const ChatPage = () => {
           />
           <div className="mt-2 flex items-center justify-between gap-2">
             <div className="relative flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploading}
+                className="inline-flex items-center gap-1 rounded-full border border-black/10 bg-white px-2.5 py-1.5 text-xs font-medium text-black/75 disabled:opacity-60 dark:border-white/20 dark:bg-white/[0.03] dark:text-white/80"
+              >
+                <Plus size={13} />
+                {uploading ? 'Uploading...' : 'Add Files'}
+              </button>
               <button
                 type="button"
                 onClick={() => setConnectorOpen((prev) => !prev)}

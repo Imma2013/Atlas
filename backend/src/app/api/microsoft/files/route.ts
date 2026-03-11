@@ -1,4 +1,4 @@
-import {
+﻿import {
   createDriveFile,
   createDriveFolder,
   getDriveItemBuffer,
@@ -63,7 +63,7 @@ export const GET = async (req: Request) => {
     return Response.json(
       {
         message: unauthorized
-          ? 'Microsoft token is expired or invalid. Reconnect Microsoft in Apps.'
+          ? 'Microsoft token is expired or invalid. Reconnect Microsoft in Settings > Connections.'
           : 'Failed to fetch files',
         error: error?.message || 'Unknown error',
       },
@@ -192,7 +192,7 @@ export const POST = async (req: Request) => {
     return Response.json(
       {
         message: unauthorized
-          ? 'Microsoft token is expired or invalid. Reconnect Microsoft in Apps.'
+          ? 'Microsoft token is expired or invalid. Reconnect Microsoft in Settings > Connections.'
           : missingWriteScope
             ? 'Missing Files.ReadWrite permission. Reconnect Microsoft after adding Files.ReadWrite scope in Azure.'
             : 'Failed to create file',
@@ -259,7 +259,7 @@ export const PATCH = async (req: Request) => {
     return Response.json(
       {
         message: unauthorized
-          ? 'Microsoft token is expired or invalid. Reconnect Microsoft in Apps.'
+          ? 'Microsoft token is expired or invalid. Reconnect Microsoft in Settings > Connections.'
           : 'Failed to update file',
         error: error?.message || 'Unknown error',
       },
@@ -267,3 +267,4 @@ export const PATCH = async (req: Request) => {
     );
   }
 };
+

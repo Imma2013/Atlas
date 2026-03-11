@@ -9,7 +9,7 @@ const MicrosoftCallbackPage = () => {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [error, setError] = useState('');
-  const [status, setStatus] = useState('Finishing sign-in and redirecting back to Apps...');
+  const [status, setStatus] = useState('Finishing sign-in and redirecting back to Settings...');
 
   useEffect(() => {
     const finishOAuth = async () => {
@@ -48,7 +48,7 @@ const MicrosoftCallbackPage = () => {
         storeMicrosoftTokens(payload.tokens);
 
         const app = payload?.app || parsedState.app || '';
-        router.replace(`/apps?connected=1${app ? `&app=${encodeURIComponent(app)}` : ''}`);
+        router.replace(`/settings?tab=connections&connected=1${app ? `&app=${encodeURIComponent(app)}` : ''}`);
       } catch (oauthError: any) {
         setError(oauthError?.message || 'Microsoft sign-in failed.');
       }

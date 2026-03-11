@@ -1,4 +1,4 @@
-import { generateDeckOutline } from '@/lib/deck';
+﻿import { generateDeckOutline } from '@/lib/deck';
 import { createActivityItem } from '@/lib/activity';
 import { callOpenRouterChat } from '@/lib/openrouter';
 import { createDriveFile } from '@/lib/microsoft';
@@ -161,6 +161,23 @@ const extractDirectBody = (query: string) => {
   const saysMatch = query.match(/\b(?:saying|that says|containing)\b\s+["']?(.+?)["']?$/i);
   if (saysMatch?.[1]) return saysMatch[1].trim();
   return null;
+};
+
+const extractRequestedSlideCount = (query: string, fallback = 6) => {
+  const match = query.match(/\b(\d{1,2})\s*(?:slides?|pages?)\b/i);
+  if (!match) return fallback;
+  const requested = Number(match[1]);
+  if (!Number.isFinite(requested)) return fallback;
+  return Math.min(15, Math.max(2, requested));
+};
+
+const cleanDeckTitle = (query: string) => {
+  const base = extractRequestedTitle(query, 'Atlas Presentation');
+  return base
+    .replace(/\b(make|create|build|generate|turn)\b/gi, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 80) || 'Atlas Presentation';
 };
 
 const generateStandaloneDocument = async (input: {
@@ -387,8 +404,8 @@ export const executeBrainFlow = async (input: BrainExecutionInput) => {
         return {
           intent: effectiveIntent,
           output: webEnabled
-            ? 'No workspace provider is connected. Connect Microsoft or Google in Apps, or disable workspace and use web.'
-            : 'Workspace token is required for workspace search. Connect Microsoft or Google in Apps.',
+            ? 'No workspace provider is connected. Connect Microsoft or Google in Settings > Connections, or disable workspace and use web.'
+            : 'Workspace token is required for workspace search. Connect Microsoft or Google in Settings > Connections.',
           requiresAuth: true,
         };
       }
@@ -731,9 +748,11 @@ export const executeBrainFlow = async (input: BrainExecutionInput) => {
 
     if (wantsPowerPointOutput) {
       const pptFileName = `Atlas-Deck-${stampedDate}.pptx`;
+      const requestedSlideCount = extractRequestedSlideCount(input.query, 6);
       const pptBuffer = await createPresentationFromText({
-        title: input.query,
+        title: cleanDeckTitle(input.query),
         text: renderedOutput,
+        slideCount: requestedSlideCount,
       });
       let cloudCreated = false;
 
@@ -839,3 +858,4 @@ export const executeBrainFlow = async (input: BrainExecutionInput) => {
     pendingDraft,
   };
 };
+

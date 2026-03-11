@@ -33,7 +33,7 @@ export async function POST(req: Request) {
   } catch (error) {
     console.error('Error uploading file:', error);
     return NextResponse.json(
-      { message: 'An error has occurred.' },
+      { message: error instanceof Error ? error.message : 'An error has occurred.' },
       { status: 500 },
     );
   }

@@ -1,4 +1,4 @@
-import { createEmailDraft } from '@/lib/microsoft';
+﻿import { createEmailDraft } from '@/lib/microsoft';
 import { z } from 'zod';
 
 export const runtime = 'nodejs';
@@ -52,7 +52,7 @@ export const POST = async (req: Request) => {
     return Response.json(
       {
         message: unauthorized
-          ? 'Microsoft token is expired or invalid. Reconnect Microsoft in Apps.'
+          ? 'Microsoft token is expired or invalid. Reconnect Microsoft in Settings > Connections.'
           : 'Failed to create email draft',
         error: error?.message || 'Unknown error',
       },
@@ -60,3 +60,4 @@ export const POST = async (req: Request) => {
     );
   }
 };
+

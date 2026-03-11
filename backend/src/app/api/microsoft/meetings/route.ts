@@ -1,4 +1,4 @@
-import { getCallRecordSessions, listOnlineMeetings } from '@/lib/microsoft';
+﻿import { getCallRecordSessions, listOnlineMeetings } from '@/lib/microsoft';
 
 export const runtime = 'nodejs';
 
@@ -47,7 +47,7 @@ export const GET = async (req: Request) => {
     return Response.json(
       {
         message: unauthorized
-          ? 'Microsoft token is expired or invalid. Reconnect Microsoft in Apps.'
+          ? 'Microsoft token is expired or invalid. Reconnect Microsoft in Settings > Connections.'
           : callRecordsPermissionError
             ? 'Call records require Microsoft Graph application permissions with admin consent. Online meetings are available with delegated user OAuth.'
             : 'Failed to fetch meetings',
@@ -57,3 +57,4 @@ export const GET = async (req: Request) => {
     );
   }
 };
+

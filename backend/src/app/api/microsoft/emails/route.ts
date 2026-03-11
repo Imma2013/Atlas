@@ -1,4 +1,4 @@
-import { getEmailById, listEmails } from '@/lib/microsoft';
+﻿import { getEmailById, listEmails } from '@/lib/microsoft';
 
 export const runtime = 'nodejs';
 
@@ -33,7 +33,7 @@ export const GET = async (req: Request) => {
     return Response.json(
       {
         message: unauthorized
-          ? 'Microsoft token is expired or invalid. Reconnect Microsoft in Apps.'
+          ? 'Microsoft token is expired or invalid. Reconnect Microsoft in Settings > Connections.'
           : 'Failed to fetch emails',
         error: error?.message || 'Unknown error',
       },
@@ -41,3 +41,4 @@ export const GET = async (req: Request) => {
     );
   }
 };
+
