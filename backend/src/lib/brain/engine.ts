@@ -240,6 +240,7 @@ export const executeBrainFlow = async (input: BrainExecutionInput) => {
     wantsFileOutput && /\b(excel|spreadsheet|csv)\b/i.test(input.query);
   const wantsPowerPointOutput =
     wantsFileOutput && /\b(powerpoint|ppt|slides?|deck|presentation)\b/i.test(input.query);
+  const requestedSlideCount = extractRequestedSlideCount(input.query, 6);
   const explicitCreateRequest =
     wantsFileOutput && (wantsWordOutput || wantsExcelOutput || wantsPowerPointOutput);
 
@@ -565,6 +566,7 @@ export const executeBrainFlow = async (input: BrainExecutionInput) => {
           'Generate a clear presentation outline with title slide, core narrative, and next steps.',
         ),
         model: models.bigModel,
+        slideCount: requestedSlideCount,
       });
       break;
     case 'analyze_spreadsheet':
@@ -748,7 +750,6 @@ export const executeBrainFlow = async (input: BrainExecutionInput) => {
 
     if (wantsPowerPointOutput) {
       const pptFileName = `Atlas-Deck-${stampedDate}.pptx`;
-      const requestedSlideCount = extractRequestedSlideCount(input.query, 6);
       const pptBuffer = await createPresentationFromText({
         title: cleanDeckTitle(input.query),
         text: renderedOutput,

@@ -80,6 +80,11 @@ const SettingsPage = () => {
     return `${first}${second}`.toUpperCase();
   }, [name, email]);
 
+  const accountSubtitle = useMemo(() => {
+    if (!connected) return 'Not connected yet';
+    return 'Microsoft account connected';
+  }, [connected]);
+
   const refreshSession = async () => {
     setRefreshing(true);
     setError('');
@@ -202,7 +207,7 @@ const SettingsPage = () => {
                       </div>
                       <div>
                         <p className="text-lg font-medium text-black dark:text-white">{name}</p>
-                        <p className="text-sm text-black/60 dark:text-white/60">{email || 'Not connected yet'}</p>
+                        <p className="text-sm text-black/60 dark:text-white/60">{accountSubtitle}</p>
                       </div>
                     </div>
                     <div className="flex items-center gap-2">

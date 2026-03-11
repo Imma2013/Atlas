@@ -815,11 +815,15 @@ const ChatPage = () => {
 
         <div className="sticky bottom-0 mt-3 shrink-0 rounded-3xl border border-black/10 bg-white/90 p-3 backdrop-blur-md shadow-[0_18px_40px_-30px_rgba(0,0,0,0.65)] dark:border-white/10 dark:bg-black/55">
           {uploadedFiles.length > 0 ? (
-            <div className="mb-2 flex flex-wrap gap-2">
+            <div className="mb-2 rounded-xl border border-black/10 bg-black/[0.02] p-2.5 dark:border-white/15 dark:bg-white/[0.03]">
+              <p className="mb-2 text-[11px] font-medium uppercase tracking-[0.08em] text-black/55 dark:text-white/55">
+                Attached {uploadedFiles.length} file{uploadedFiles.length === 1 ? '' : 's'}
+              </p>
+              <div className="flex flex-wrap gap-2">
               {uploadedFiles.map((file) => (
                 <span
                   key={file.fileId}
-                  className="inline-flex items-center gap-1 rounded-full border border-black/10 bg-black/[0.03] px-2 py-1 text-[11px] text-black/75 dark:border-white/15 dark:bg-white/[0.04] dark:text-white/80"
+                  className="inline-flex items-center gap-1.5 rounded-full border border-black/15 bg-white px-2.5 py-1 text-[11px] text-black/80 dark:border-white/20 dark:bg-black/20 dark:text-white/85"
                 >
                   <Paperclip size={11} />
                   {file.fileName}
@@ -833,6 +837,7 @@ const ChatPage = () => {
                   </button>
                 </span>
               ))}
+              </div>
             </div>
           ) : null}
           <input
