@@ -46,7 +46,7 @@ const Sidebar = ({ children }: { children: React.ReactNode }) => {
             <p className="text-[11px] uppercase tracking-[0.14em] text-black/55 dark:text-white/55">
               Workspace
             </p>
-            <p className="mt-1 text-xl font-semibold tracking-tight text-black dark:text-white">Atlas Agent</p>
+            <p className="mt-1 text-xl font-semibold tracking-tight text-black dark:text-white">Cryzo Agent</p>
           </div>
 
           <div className="space-y-2">

@@ -12,7 +12,7 @@ import {
   getMicrosoftAccessToken,
   hasMicrosoftAppScopes,
 } from '@/lib/microsoftAuthClient';
-import { GOOGLE_LOGOS, MICROSOFT_LOGOS } from '@/lib/appLogos';
+import { MICROSOFT_LOGOS } from '@/lib/appLogos';
 import type { GoogleAppKey } from '@/lib/googleScopes';
 import type { MicrosoftAppKey } from '@/lib/microsoftScopes';
 import {
@@ -125,33 +125,33 @@ const GOOGLE_CONNECTORS: Array<{
 }> = [
   {
     key: 'gmail',
-    label: 'Gmail',
-    icon: GOOGLE_LOGOS.gmail,
+    label: 'Mail',
+    icon: MICROSOFT_LOGOS.outlook,
   },
   {
     key: 'calendar',
-    label: 'Google Calendar',
-    icon: GOOGLE_LOGOS.calendar,
+    label: 'Calendar',
+    icon: MICROSOFT_LOGOS.calendar,
   },
   {
     key: 'drive',
-    label: 'Google Drive',
-    icon: GOOGLE_LOGOS.drive,
+    label: 'Drive',
+    icon: MICROSOFT_LOGOS.onedrive,
   },
   {
     key: 'docs',
-    label: 'Google Docs',
-    icon: GOOGLE_LOGOS.docs,
+    label: 'Documents',
+    icon: MICROSOFT_LOGOS.word,
   },
   {
     key: 'sheets',
-    label: 'Google Sheets',
-    icon: GOOGLE_LOGOS.sheets,
+    label: 'Spreadsheets',
+    icon: MICROSOFT_LOGOS.excel,
   },
   {
     key: 'slides',
-    label: 'Google Slides',
-    icon: GOOGLE_LOGOS.slides,
+    label: 'Slides',
+    icon: MICROSOFT_LOGOS.powerpoint,
   },
 ];
 
@@ -531,7 +531,7 @@ const ChatPage = () => {
         type: includeWeb ? 'web_search' : 'file',
         title: query.slice(0, 120),
         summary: output,
-        model_used: 'Astro Agent',
+        model_used: 'Cryzo Agent',
         links: {
           ...extractLinksFromText(output),
           ...downloadLinks,
@@ -564,7 +564,7 @@ const ChatPage = () => {
       if (!token) {
         throw new Error(
           isGmail
-            ? 'Gmail is not connected. Use + to connect Gmail.'
+            ? 'Mail connector is not connected. Use + to connect Mail.'
             : 'Outlook is not connected. Use + to connect Outlook.',
         );
       }
@@ -633,12 +633,12 @@ const ChatPage = () => {
   const getDownloadIcon = (download: NonNullable<ChatMessage['downloads']>[number]) => {
     if (download.origin === 'google') {
       if (download.kind === 'word') {
-        return GOOGLE_LOGOS.docs;
+        return MICROSOFT_LOGOS.word;
       }
       if (download.kind === 'excel') {
-        return GOOGLE_LOGOS.sheets;
+        return MICROSOFT_LOGOS.excel;
       }
-      return GOOGLE_LOGOS.slides;
+      return MICROSOFT_LOGOS.powerpoint;
     }
 
     if (download.kind === 'word') return MICROSOFT_LOGOS.word;
@@ -653,7 +653,7 @@ const ChatPage = () => {
         <div className="pointer-events-none absolute -bottom-20 -right-24 h-56 w-56 rounded-full bg-amber-300/20 blur-3xl dark:bg-amber-500/10" />
         <div className="relative mb-3 flex items-center justify-between gap-2">
           <p className="text-[11px] uppercase tracking-[0.18em] text-black/55 dark:text-white/55">
-            Atlas Workspace
+            Cryzo Workspace
           </p>
           <p className="text-[11px] text-black/55 dark:text-white/55">
             {messages.length} message{messages.length === 1 ? '' : 's'}
@@ -694,7 +694,7 @@ const ChatPage = () => {
                     {message.role === 'assistant' && message.pendingDraft ? (
                       <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3 dark:border-amber-300/30 dark:bg-amber-500/10">
                         <p className="text-xs font-semibold uppercase tracking-[0.1em] text-amber-700 dark:text-amber-200">
-                          {message.pendingDraft.provider === 'gmail' ? 'Gmail' : 'Outlook'} Draft Review
+                          {message.pendingDraft.provider === 'gmail' ? 'Mail' : 'Outlook'} Draft Review
                         </p>
                         <p className="mt-1 text-xs text-black/70 dark:text-white/75">
                           Draft only. It will never send automatically.
@@ -807,7 +807,7 @@ const ChatPage = () => {
                   </div>
                 </div>
               ))}
-              {loading ? <p className="text-sm text-black/60 dark:text-white/60">Astro Agent is working...</p> : null}
+              {loading ? <p className="text-sm text-black/60 dark:text-white/60">Cryzo Agent is working...</p> : null}
               <div ref={messagesEndRef} />
             </div>
           </div>
@@ -899,11 +899,6 @@ const ChatPage = () => {
                   <p className="mb-2 text-xs font-semibold uppercase tracking-[0.1em] text-black/45 dark:text-white/45">
                     Connectors
                   </p>
-                  {!GOOGLE_CONNECTORS_ENABLED ? (
-                    <p className="mb-2 rounded-lg border border-amber-200 bg-amber-50 px-2 py-1 text-xs text-amber-700">
-                      Google connectors are hidden until OAuth verification is finished.
-                    </p>
-                  ) : null}
                   <div className="max-h-72 space-y-2 overflow-auto pr-1">
                     {connectorRows.map((item) => (
                       <div
