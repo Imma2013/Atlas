@@ -506,19 +506,17 @@ const ChatPage = () => {
 
   return (
     <div className="mx-auto flex h-[calc(100vh-1rem)] max-w-5xl flex-col px-4 py-4 md:px-6">
-      <div className="mb-3 shrink-0 rounded-2xl border border-light-200 bg-white px-4 py-3 shadow-sm">
-        <h1 className="text-2xl font-semibold tracking-tight text-black">
-          {messages.length === 0 ? 'What can Astro Agent do for you?' : 'Astro Agent'}
-        </h1>
-        <p className="mt-1 text-sm text-black/60">
-          One agent. JIT router. Draft-safe email. Cross-app workflows.
-        </p>
-      </div>
-
+      {messages.length === 0 ? (
+        <div className="flex flex-1 items-center justify-center rounded-2xl border border-light-200 bg-white p-3">
+          <div className="text-center">
+            <h1 className="text-5xl font-medium tracking-tight text-black">What can I do for you?</h1>
+            <p className="mt-3 text-sm text-black/60">
+              Astro Agent for Outlook, OneDrive, Word, Excel, PowerPoint, Teams, and Calendar.
+            </p>
+          </div>
+        </div>
+      ) : (
       <div className="flex-1 overflow-y-auto rounded-2xl border border-light-200 bg-white p-3">
-        {messages.length === 0 ? (
-          <p className="text-sm text-black/55">Ask for email summaries, docs, spreadsheets, decks, or web research.</p>
-        ) : null}
         <div className="space-y-3">
           {messages.map((message, index) => (
             <div
@@ -637,6 +635,7 @@ const ChatPage = () => {
           <div ref={messagesEndRef} />
         </div>
       </div>
+      )}
 
       <div className="sticky bottom-0 mt-3 shrink-0 rounded-2xl border border-black/10 bg-white p-3 shadow-[0_8px_30px_-20px_rgba(0,0,0,0.4)]">
         <textarea

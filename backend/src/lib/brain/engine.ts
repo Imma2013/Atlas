@@ -155,12 +155,25 @@ const extractRequestedTitle = (query: string, fallback: string) => {
   return fallback;
 };
 
+const extractDirectBody = (query: string) => {
+  const withMatch = query.match(/\bwith\b\s+["']?(.+?)["']?$/i);
+  if (withMatch?.[1]) return withMatch[1].trim();
+  const saysMatch = query.match(/\b(?:saying|that says|containing)\b\s+["']?(.+?)["']?$/i);
+  if (saysMatch?.[1]) return saysMatch[1].trim();
+  return null;
+};
+
 const generateStandaloneDocument = async (input: {
   model: string;
   query: string;
   workspaceContextText: string;
   conversationContext: string;
 }) => {
+  const directBody = extractDirectBody(input.query);
+  if (directBody) {
+    return directBody;
+  }
+
   const forcedWord = extractSingleWordRequest(input.query);
   if (forcedWord) {
     return forcedWord;
@@ -201,10 +214,22 @@ export const executeBrainFlow = async (input: BrainExecutionInput) => {
   const webEnabled = selectedSources.has('web');
   const workspaceEnabled =
     selectedSources.has('workspace') || selectedSources.size === 0;
+  const wantsFileOutput = /\b(make|create|turn|convert|export|save|write|build|generate)\b/i.test(
+    input.query,
+  );
+  const wantsWordOutput =
+    wantsFileOutput && /\b(word|doc|docx|document)\b/i.test(input.query);
+  const wantsExcelOutput =
+    wantsFileOutput && /\b(excel|spreadsheet|csv)\b/i.test(input.query);
+  const wantsPowerPointOutput =
+    wantsFileOutput && /\b(powerpoint|ppt|slides?|deck|presentation)\b/i.test(input.query);
+  const explicitCreateRequest =
+    wantsFileOutput && (wantsWordOutput || wantsExcelOutput || wantsPowerPointOutput);
+
   const route = await routeMcpServers(input.query, models.routerModel);
   const routeLoadedServers = loadMcpServersForRoute(route.required_mcp_servers);
   const intent = inferIntentFromMcpServers(input.query, route.required_mcp_servers, webEnabled);
-  const effectiveIntent: BrainIntent =
+  let effectiveIntent: BrainIntent =
     intent === 'search_web' && !webEnabled
       ? 'search_workspace'
       : intent === 'unknown' && workspaceEnabled
@@ -212,6 +237,16 @@ export const executeBrainFlow = async (input: BrainExecutionInput) => {
         : intent === 'unknown' && webEnabled
           ? 'search_web'
           : intent;
+
+  if (explicitCreateRequest) {
+    if (wantsPowerPointOutput) {
+      effectiveIntent = 'generate_deck';
+    } else if (wantsExcelOutput) {
+      effectiveIntent = 'analyze_spreadsheet';
+    } else {
+      effectiveIntent = 'summarize_file';
+    }
+  }
   const microsoftLoadedServers = selectToolsForPrompt({
     intent: effectiveIntent,
     query: input.query,
@@ -296,14 +331,6 @@ export const executeBrainFlow = async (input: BrainExecutionInput) => {
   const downloads: GeneratedDownload[] = [];
   let pendingDraft: PendingDraft | undefined;
 
-  const wantsFileOutput = /\b(make|create|turn|convert|export|save)\b/i.test(input.query);
-  const wantsWordOutput =
-    wantsFileOutput && /\b(word|doc|docx|document)\b/i.test(input.query);
-  const wantsExcelOutput =
-    wantsFileOutput && /\b(excel|spreadsheet|csv)\b/i.test(input.query);
-  const wantsPowerPointOutput =
-    wantsFileOutput && /\b(powerpoint|ppt|slides?|deck)\b/i.test(input.query);
-
   switch (effectiveIntent) {
     case 'summarize_meeting':
       actionType = 'summary';
@@ -342,7 +369,7 @@ export const executeBrainFlow = async (input: BrainExecutionInput) => {
           model: models.midModel,
           query: input.query,
           workspaceContextText,
-          conversationContext,
+          conversationContext: '',
         });
       } else {
         output = await summarizeText({
@@ -386,6 +413,16 @@ export const executeBrainFlow = async (input: BrainExecutionInput) => {
             workspace?.events?.[0]?.links?.calendar || 'https://calendar.google.com/',
         };
 
+        if (explicitCreateRequest) {
+          output = await generateStandaloneDocument({
+            model: models.midModel,
+            query: input.query,
+            workspaceContextText,
+            conversationContext: '',
+          });
+          break;
+        }
+
         const concise = await callOpenRouterChat({
           model: models.midModel,
           temperature: 0.2,
@@ -411,7 +448,7 @@ export const executeBrainFlow = async (input: BrainExecutionInput) => {
             model: models.midModel,
             query: input.query,
             workspaceContextText,
-            conversationContext,
+            conversationContext: '',
           });
         }
       }
