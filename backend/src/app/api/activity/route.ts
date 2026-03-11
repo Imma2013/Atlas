@@ -34,7 +34,7 @@ export const GET = async (req: Request) => {
       query: {
         user_id: `eq.${userId}`,
         select: '*',
-        order: 'created_at.desc',
+        order: 'updated_at.desc',
         limit: '100',
       },
     });

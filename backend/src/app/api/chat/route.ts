@@ -151,6 +151,7 @@ export const POST = async (req: Request) => {
       try {
         const brainResponse = await executeBrainFlow({
           query: message.content,
+          chatId: message.chatId,
           userId,
           microsoftAccessToken: microsoftAccessToken || undefined,
           googleAccessToken: googleAccessToken || undefined,

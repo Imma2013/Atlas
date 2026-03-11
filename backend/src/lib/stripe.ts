@@ -33,8 +33,10 @@ export const createCheckoutSession = async (input: {
   priceId: string;
   successUrl: string;
   cancelUrl: string;
+  customerId?: string;
   customerEmail?: string;
   metadata?: Record<string, string>;
+  subscriptionMetadata?: Record<string, string>;
 }) => {
   const body = new URLSearchParams({
     mode: 'subscription',
@@ -44,12 +46,20 @@ export const createCheckoutSession = async (input: {
     cancel_url: input.cancelUrl,
   });
 
+  if (input.customerId) {
+    body.set('customer', input.customerId);
+  }
+
   if (input.customerEmail) {
     body.set('customer_email', input.customerEmail);
   }
 
   Object.entries(input.metadata || {}).forEach(([key, value]) => {
     body.set(`metadata[${key}]`, value);
+  });
+
+  Object.entries(input.subscriptionMetadata || {}).forEach(([key, value]) => {
+    body.set(`subscription_data[metadata][${key}]`, value);
   });
 
   return stripeRequest('/checkout/sessions', body);

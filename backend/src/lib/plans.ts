@@ -53,3 +53,11 @@ export const resolvePlanByPriceId = (priceId: string): PlanTier => {
   if (priceId === process.env.STRIPE_PRICE_ENTERPRISE) return 'enterprise';
   return 'free';
 };
+
+export const resolvePriceIdByTier = (tier: Exclude<PlanTier, 'free'>): string | null => {
+  if (tier === 'starter') return process.env.STRIPE_PRICE_STARTER || null;
+  if (tier === 'pro') return process.env.STRIPE_PRICE_PRO || null;
+  if (tier === 'business') return process.env.STRIPE_PRICE_BUSINESS || null;
+  if (tier === 'enterprise') return process.env.STRIPE_PRICE_ENTERPRISE || null;
+  return null;
+};

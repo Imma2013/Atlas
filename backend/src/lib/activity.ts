@@ -22,6 +22,35 @@ export const createActivityItem = async (input: {
   }
 
   try {
+    const existing = await supabaseAdminRequest<Array<{ id: string; title: string }>>({
+      path: 'activity_items',
+      query: {
+        user_id: `eq.${input.userId}`,
+        source_id: `eq.${input.sourceId}`,
+        select: 'id,title',
+        limit: '1',
+      },
+    });
+
+    if (existing.length > 0) {
+      await supabaseAdminRequest({
+        path: 'activity_items',
+        method: 'PATCH',
+        query: {
+          id: `eq.${existing[0].id}`,
+        },
+        body: {
+          type: input.type,
+          summary: input.summary,
+          action_items: input.actionItems || [],
+          decisions: input.decisions || [],
+          links: input.links || {},
+          model_used: input.modelUsed,
+        },
+      });
+      return;
+    }
+
     await supabaseAdminRequest({
       path: 'activity_items',
       method: 'POST',
@@ -40,6 +69,10 @@ export const createActivityItem = async (input: {
   } catch (error) {
     if (isSupabaseMissingTableError(error, 'activity_items')) {
       console.warn('Missing Supabase table public.activity_items. Activity event was not recorded.');
+      return;
+    }
+    if (String(error).includes('violates foreign key constraint')) {
+      console.warn('Skipping activity write because user_id is not an auth.users record.');
       return;
     }
     throw error;

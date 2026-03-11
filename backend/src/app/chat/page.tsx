@@ -58,6 +58,7 @@ type ConnectorState = {
 
 type LocalActivityItem = {
   id: string;
+  chat_id?: string;
   type: string;
   title: string;
   summary: string;
@@ -67,6 +68,7 @@ type LocalActivityItem = {
 };
 
 type ChatSessionSnapshot = {
+  chatId: string;
   includeWeb: boolean;
   input: string;
   messages: ChatMessage[];
@@ -84,6 +86,7 @@ let inMemoryChatSession: ChatSessionSnapshot | null = null;
 const GOOGLE_CONNECTORS_ENABLED =
   process.env.NEXT_PUBLIC_ENABLE_GOOGLE_CONNECTORS === 'true';
 const LOCAL_ACTIVITY_KEY = 'atlasLocalActivity';
+const CHAT_SESSIONS_KEY = 'atlasChatSessions';
 
 const defaultConnectorState: ConnectorState = {
   microsoft: {
@@ -205,14 +208,58 @@ const saveLocalActivity = (item: Omit<LocalActivityItem, 'id' | 'created_at'>) =
     const current = JSON.parse(
       localStorage.getItem(LOCAL_ACTIVITY_KEY) || '[]',
     ) as LocalActivityItem[];
+    const now = new Date().toISOString();
+    const existingIndex =
+      item.chat_id
+        ? current.findIndex((entry) => entry.chat_id && entry.chat_id === item.chat_id)
+        : -1;
+
+    if (existingIndex >= 0) {
+      const existing = current[existingIndex];
+      const updated: LocalActivityItem = {
+        ...existing,
+        ...item,
+        title: existing.title || item.title,
+      };
+      const nextItems = [updated, ...current.filter((_, index) => index !== existingIndex)];
+      localStorage.setItem(LOCAL_ACTIVITY_KEY, JSON.stringify(nextItems.slice(0, 200)));
+      return;
+    }
+
     const next: LocalActivityItem = {
       id: crypto.randomUUID(),
-      created_at: new Date().toISOString(),
+      created_at: now,
       ...item,
     };
     localStorage.setItem(LOCAL_ACTIVITY_KEY, JSON.stringify([next, ...current].slice(0, 200)));
   } catch {
     // ignore local activity cache failures
+  }
+};
+
+const persistChatSession = (session: ChatSessionSnapshot) => {
+  if (typeof window === 'undefined') return;
+  try {
+    const raw = localStorage.getItem(CHAT_SESSIONS_KEY);
+    const current = raw ? (JSON.parse(raw) as ChatSessionSnapshot[]) : [];
+    const withoutCurrent = current.filter((entry) => entry.chatId !== session.chatId);
+    localStorage.setItem(
+      CHAT_SESSIONS_KEY,
+      JSON.stringify([session, ...withoutCurrent].slice(0, 80)),
+    );
+  } catch {
+    // ignore local session cache failures
+  }
+};
+
+const getStoredChatSession = (chatId: string) => {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = localStorage.getItem(CHAT_SESSIONS_KEY);
+    const current = raw ? (JSON.parse(raw) as ChatSessionSnapshot[]) : [];
+    return current.find((entry) => entry.chatId === chatId) || null;
+  } catch {
+    return null;
   }
 };
 
@@ -261,6 +308,9 @@ const LinkifiedText = ({ text }: { text: string }) => {
 
 const ChatPage = () => {
   const searchParams = useSearchParams();
+  const [chatId, setChatId] = useState(
+    () => inMemoryChatSession?.chatId ?? getOrCreateChatId(),
+  );
   const [includeWeb, setIncludeWeb] = useState(
     () => inMemoryChatSession?.includeWeb ?? true,
   );
@@ -318,12 +368,20 @@ const ChatPage = () => {
 
   useEffect(() => {
     inMemoryChatSession = {
+      chatId,
       includeWeb,
       input,
       messages,
       uploadedFiles,
     };
-  }, [includeWeb, input, messages, uploadedFiles]);
+    persistChatSession({
+      chatId,
+      includeWeb,
+      input,
+      messages,
+      uploadedFiles,
+    });
+  }, [chatId, includeWeb, input, messages, uploadedFiles]);
 
   useEffect(() => {
     if (searchParams.get('fromActivity') !== '1') return;
@@ -334,6 +392,21 @@ const ChatPage = () => {
 
     try {
       const item = JSON.parse(raw) as LocalActivityItem;
+      const sessionChatId = item.chat_id || '';
+      const storedSession = sessionChatId ? getStoredChatSession(sessionChatId) : null;
+
+      if (storedSession) {
+        setChatId(storedSession.chatId);
+        setIncludeWeb(storedSession.includeWeb);
+        setMessages(storedSession.messages || []);
+        setInput(storedSession.input || '');
+        setUploadedFiles(storedSession.uploadedFiles || []);
+        setError('');
+        setLoading(false);
+        localStorage.setItem('atlasActiveChatId', storedSession.chatId);
+        return;
+      }
+
       const links = item.links
         ? Object.values(item.links)
             .filter((href) => typeof href === 'string' && href.length > 0)
@@ -350,11 +423,14 @@ const ChatPage = () => {
         { role: 'user', text: item.title || 'Activity item' },
         { role: 'assistant', text: assistantText || 'No summary available.' },
       ]);
+      if (sessionChatId) {
+        setChatId(sessionChatId);
+        localStorage.setItem('atlasActiveChatId', sessionChatId);
+      }
       setError('');
       setLoading(false);
       setInput('');
       setUploadedFiles([]);
-      localStorage.setItem('atlasActiveChatId', `activity-${item.id}`);
     } catch {
       // Ignore malformed activity payloads.
     } finally {
@@ -454,7 +530,7 @@ const ChatPage = () => {
     if (!query || loading) return;
 
     const userId = getOrCreateUserId();
-    const chatId = getOrCreateChatId();
+    localStorage.setItem('atlasActiveChatId', chatId);
     const microsoftAccessToken = await getMicrosoftAccessToken();
     const googleAccessToken = GOOGLE_CONNECTORS_ENABLED ? await getGoogleAccessToken() : null;
     const currentHistory = asHistory(messages);
@@ -528,6 +604,7 @@ const ChatPage = () => {
         {} as Record<string, string>,
       );
       saveLocalActivity({
+        chat_id: chatId,
         type: includeWeb ? 'web_search' : 'file',
         title: query.slice(0, 120),
         summary: output,

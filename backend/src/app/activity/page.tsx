@@ -6,6 +6,8 @@ import { ArrowUpRight, Sparkles } from 'lucide-react';
 
 type ActivityItem = {
   id: string;
+  source_id?: string;
+  chat_id?: string;
   type: string;
   title: string;
   summary: string;
@@ -39,8 +41,32 @@ const ActivityPage = () => {
 
         const res = await fetch(`/api/activity?userId=${storedUserId}`);
         const data = await res.json().catch(() => ({}));
-        const remoteItems = res.ok ? (data.items || []) : [];
-        const merged = [...localItems, ...remoteItems].sort((a, b) => {
+        const remoteItems = res.ok
+          ? ((data.items || []) as ActivityItem[]).map((item) => ({
+              ...item,
+              chat_id: item.chat_id || item.source_id,
+            }))
+          : [];
+        const merged = [...localItems, ...remoteItems]
+          .reduce((acc, item) => {
+            const key = item.chat_id || item.source_id || item.id;
+            const existingIndex = acc.findIndex(
+              (entry) =>
+                (entry.chat_id || entry.source_id || entry.id) === key,
+            );
+            if (existingIndex >= 0) {
+              const existing = acc[existingIndex];
+              const existingTs = new Date(existing.created_at).getTime();
+              const currentTs = new Date(item.created_at).getTime();
+              if (currentTs >= existingTs) {
+                acc[existingIndex] = { ...item, title: existing.title || item.title };
+              }
+            } else {
+              acc.push(item);
+            }
+            return acc;
+          }, [] as ActivityItem[])
+          .sort((a, b) => {
           const aTs = new Date(a.created_at).getTime();
           const bTs = new Date(b.created_at).getTime();
           return bTs - aTs;

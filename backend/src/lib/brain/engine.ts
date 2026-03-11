@@ -33,6 +33,7 @@ import {
 
 export type BrainExecutionInput = {
   query: string;
+  chatId?: string;
   microsoftAccessToken?: string;
   googleAccessToken?: string;
   userId?: string;
@@ -840,7 +841,7 @@ export const executeBrainFlow = async (input: BrainExecutionInput) => {
     createActivityItem({
       userId: input.userId,
       type: activityType,
-      sourceId: crypto.randomUUID(),
+      sourceId: input.chatId || crypto.randomUUID(),
       title: input.query.slice(0, 120),
       summary:
         typeof cleanedOutput === 'string'
