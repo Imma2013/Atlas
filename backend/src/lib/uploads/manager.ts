@@ -9,11 +9,18 @@ import officeParser from 'officeparser'
 
 const supportedMimeTypes = [
     'application/pdf',
+    'application/msword',
+    'application/vnd.ms-excel',
+    'application/vnd.ms-powerpoint',
     'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    'application/vnd.openxmlformats-officedocument.presentationml.presentation',
     'text/plain',
     'image/png',
+    'image/jpg',
     'image/jpeg',
     'image/webp',
+    'image/gif',
 ] as const
 
 type SupportedMimeType = typeof supportedMimeTypes[number];
@@ -150,7 +157,12 @@ class UploadManager {
                 fs.writeFileSync(pdfContentPath, JSON.stringify(pdfData, null, 2));
 
                 return pdfContentPath;
+            case 'application/msword':
+            case 'application/vnd.ms-excel':
+            case 'application/vnd.ms-powerpoint':
             case 'application/vnd.openxmlformats-officedocument.wordprocessingml.document':
+            case 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet':
+            case 'application/vnd.openxmlformats-officedocument.presentationml.presentation':
                 const docBuffer = fs.readFileSync(filePath);
 
                 const docText = await officeParser.parseOfficeAsync(docBuffer)
@@ -177,8 +189,10 @@ class UploadManager {
 
                 return docContentPath;
             case 'image/png':
+            case 'image/jpg':
             case 'image/jpeg':
             case 'image/webp':
+            case 'image/gif':
                 const imagePlaceholder = `Image uploaded: ${path.basename(filePath)}. Use this as visual reference context.`;
                 const imageEmbeddings = await this.embeddingModel.embedText([imagePlaceholder]);
                 const imageContentPath = filePath.split('.').slice(0, -1).join('.') + '.content.json';

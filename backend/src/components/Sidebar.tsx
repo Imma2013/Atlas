@@ -8,12 +8,8 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { useSelectedLayoutSegments } from 'next/navigation';
-import React, { type ReactNode } from 'react';
+import React from 'react';
 import Layout from './Layout';
-
-const VerticalIconContainer = ({ children }: { children: ReactNode }) => {
-  return <div className="flex flex-col items-center w-full">{children}</div>;
-};
 
 const Sidebar = ({ children }: { children: React.ReactNode }) => {
   const segments = useSelectedLayoutSegments();
@@ -44,50 +40,46 @@ const Sidebar = ({ children }: { children: React.ReactNode }) => {
 
   return (
     <div>
-      <div className="hidden lg:fixed lg:inset-y-0 lg:z-50 lg:flex lg:w-[88px] lg:flex-col">
-        <div className="m-4 flex grow flex-col items-center justify-between gap-y-5 overflow-y-auto rounded-3xl border border-black/10 bg-white/70 px-2 py-8 shadow-[0_20px_45px_-35px_rgba(0,0,0,0.75)] backdrop-blur-md dark:border-white/10 dark:bg-white/[0.03]">
-          <div className="h-4" />
-          <VerticalIconContainer>
-            {navLinks.map((link, i) => (
+      <div className="hidden lg:fixed lg:inset-y-0 lg:z-50 lg:flex lg:w-[272px] lg:flex-col">
+        <div className="m-4 flex grow flex-col overflow-y-auto rounded-3xl border border-black/10 bg-white/78 p-4 shadow-[0_24px_55px_-40px_rgba(0,0,0,0.78)] backdrop-blur-xl dark:border-white/10 dark:bg-[#0b1220]/80">
+          <div className="mb-4 rounded-2xl border border-black/10 bg-white/70 px-4 py-3 dark:border-white/10 dark:bg-white/[0.02]">
+            <p className="text-[11px] uppercase tracking-[0.14em] text-black/55 dark:text-white/55">
+              Workspace
+            </p>
+            <p className="mt-1 text-xl font-semibold tracking-tight text-black dark:text-white">Atlas Agent</p>
+          </div>
+
+          <div className="space-y-2">
+            {navLinks.map((link) => (
               <Link
-                key={i}
+                key={link.href}
                 href={link.href}
                 className={cn(
-                  'relative flex w-full cursor-pointer flex-col items-center justify-center space-y-0.5 rounded-xl py-2',
+                  'group relative flex w-full items-center gap-3 rounded-xl border px-3 py-2.5 transition-all duration-200',
                   link.active
-                    ? 'text-black dark:text-white'
-                    : 'text-black/60 dark:text-white/65',
+                    ? 'border-cyan-300/60 bg-cyan-50/80 text-black shadow-[0_12px_25px_-20px_rgba(0,0,0,0.45)] dark:border-cyan-400/45 dark:bg-cyan-500/10 dark:text-white'
+                    : 'border-transparent text-black/70 hover:border-black/10 hover:bg-black/[0.03] dark:text-white/70 dark:hover:border-white/15 dark:hover:bg-white/[0.04]',
                 )}
               >
-                <div
-                  className={cn(
-                    link.active &&
-                      'bg-gradient-to-br from-cyan-200 to-cyan-50 shadow-[0_8px_20px_-14px_rgba(0,0,0,0.5)] dark:from-cyan-500/35 dark:to-cyan-400/5',
-                    'group rounded-xl border border-transparent transition duration-200 hover:border-black/10 hover:bg-black/[0.03] dark:hover:border-white/15 dark:hover:bg-white/[0.04]',
-                  )}
-                >
-                  <link.icon
-                    size={25}
-                    className={cn(
-                      !link.active && 'group-hover:scale-105',
-                      'm-1.5 transition duration-200',
-                    )}
-                  />
+                <div className="rounded-lg border border-black/10 bg-white/80 p-1.5 dark:border-white/15 dark:bg-white/[0.03]">
+                  <link.icon size={18} className={cn(!link.active && 'group-hover:scale-105', 'transition')} />
                 </div>
                 <p
                   className={cn(
                     link.active
-                      ? 'text-black/85 dark:text-white/85'
-                      : 'text-black/60 dark:text-white/60',
-                    'text-[10px] uppercase tracking-[0.12em]',
+                      ? 'text-black/90 dark:text-white/90'
+                      : 'text-black/70 dark:text-white/70',
+                    'text-sm font-medium tracking-tight',
                   )}
                 >
                   {link.label}
                 </p>
               </Link>
             ))}
-          </VerticalIconContainer>
-          <div className="h-2" />
+          </div>
+          <div className="mt-auto rounded-xl border border-black/10 bg-white/60 px-3 py-2 text-xs text-black/55 dark:border-white/10 dark:bg-white/[0.02] dark:text-white/55">
+            Your workspace history stays in chat until refresh.
+          </div>
         </div>
       </div>
 

@@ -24,14 +24,8 @@ const connectors: ConnectorItem[] = [
   {
     key: 'outlook',
     label: 'Outlook Mail',
-    description: 'Read inbox context and create drafts.',
+    description: 'Read inbox, calendar context, and create drafts.',
     icon: MICROSOFT_LOGOS.outlook,
-  },
-  {
-    key: 'calendar',
-    label: 'Calendar',
-    description: 'Read events and scheduling context.',
-    icon: MICROSOFT_LOGOS.calendar,
   },
   {
     key: 'word',

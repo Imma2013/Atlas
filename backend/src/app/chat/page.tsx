@@ -84,8 +84,6 @@ let inMemoryChatSession: ChatSessionSnapshot | null = null;
 const GOOGLE_CONNECTORS_ENABLED =
   process.env.NEXT_PUBLIC_ENABLE_GOOGLE_CONNECTORS === 'true';
 const LOCAL_ACTIVITY_KEY = 'atlasLocalActivity';
-const EMBEDDING_MODEL_KEY = 'openrouter-default';
-const EMBEDDING_PROVIDER_ID = 'openrouter';
 
 const defaultConnectorState: ConnectorState = {
   microsoft: {
@@ -113,7 +111,6 @@ const MICROSOFT_CONNECTORS: Array<{
   icon: string;
 }> = [
   { key: 'outlook', label: 'Outlook Mail', icon: MICROSOFT_LOGOS.outlook },
-  { key: 'calendar', label: 'Outlook Calendar', icon: MICROSOFT_LOGOS.calendar },
   { key: 'word', label: 'Word', icon: MICROSOFT_LOGOS.word },
   { key: 'excel', label: 'Excel', icon: MICROSOFT_LOGOS.excel },
   { key: 'powerpoint', label: 'PowerPoint', icon: MICROSOFT_LOGOS.powerpoint },
@@ -416,8 +413,6 @@ const ChatPage = () => {
     Array.from(files).forEach((file) => {
       formData.append('files', file);
     });
-    formData.append('embedding_model_key', EMBEDDING_MODEL_KEY);
-    formData.append('embedding_model_provider_id', EMBEDDING_PROVIDER_ID);
 
     setUploading(true);
     setError('');
@@ -672,7 +667,7 @@ const ChatPage = () => {
                 What can I do for you?
               </h1>
               <p className="mx-auto mt-4 max-w-2xl text-sm text-black/65 dark:text-white/65">
-                Unified assistant for Outlook, OneDrive, Word, Excel, PowerPoint, Teams, and Calendar.
+                Unified assistant for Outlook, OneDrive, Word, Excel, PowerPoint, and Teams.
               </p>
             </div>
           </div>
@@ -844,7 +839,7 @@ const ChatPage = () => {
             ref={fileInputRef}
             type="file"
             multiple
-            accept=".pdf,.docx,.txt,image/png,image/jpeg,image/webp"
+            accept=".pdf,.txt,.doc,.docx,.xls,.xlsx,.ppt,.pptx,image/png,image/jpg,image/jpeg,image/webp,image/gif"
             className="hidden"
             onChange={(event) => uploadFiles(event.target.files)}
           />
