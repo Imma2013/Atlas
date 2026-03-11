@@ -14,7 +14,7 @@ import {
   getGoogleGrantedScopes,
   hasGoogleAppScopes,
 } from '@/lib/googleAuthClient';
-import type { MicrosoftAppKey } from '@/lib/microsoftScopes';
+import type { MicrosoftAppKey, MicrosoftScopeTarget } from '@/lib/microsoftScopes';
 import type { GoogleAppKey } from '@/lib/googleScopes';
 import { ArrowRight, CheckCircle2, Link2, RefreshCw } from 'lucide-react';
 
@@ -145,7 +145,7 @@ const googleApps = [
 const AppsPage = () => {
   const searchParams = useSearchParams();
   const [connecting, setConnecting] = useState(false);
-  const [connectingApp, setConnectingApp] = useState<MicrosoftAppKey | null>(null);
+  const [connectingApp, setConnectingApp] = useState<MicrosoftScopeTarget | null>(null);
   const [googleConnecting, setGoogleConnecting] = useState(false);
   const [connectingGoogleApp, setConnectingGoogleApp] = useState<GoogleAppKey | null>(null);
   const [refreshing, setRefreshing] = useState(false);
@@ -245,7 +245,7 @@ const AppsPage = () => {
     }
   }, [searchParams]);
 
-  const connectMicrosoft = async (app?: MicrosoftAppKey) => {
+  const connectMicrosoft = async (app?: MicrosoftScopeTarget) => {
     setConnecting(true);
     setConnectingApp(app || null);
     setError('');
@@ -341,13 +341,13 @@ const AppsPage = () => {
           <div className="flex flex-wrap items-center gap-2">
             {connected ? (
               <>
-                <button
-                  onClick={() => connectMicrosoft()}
-                  className="inline-flex items-center gap-1 rounded-lg border border-light-200 px-3 py-1.5 text-sm"
-                >
-                  <Link2 size={14} />
-                  Reconnect OAuth
-                </button>
+              <button
+                onClick={() => connectMicrosoft('all')}
+                className="inline-flex items-center gap-1 rounded-lg border border-light-200 px-3 py-1.5 text-sm"
+              >
+                <Link2 size={14} />
+                Reconnect All Scopes
+              </button>
                 <button
                   onClick={refreshData}
                   disabled={refreshing}
@@ -365,12 +365,12 @@ const AppsPage = () => {
               </>
             ) : (
               <button
-                onClick={() => connectMicrosoft()}
+                onClick={() => connectMicrosoft('all')}
                 disabled={connecting}
                 className="inline-flex items-center gap-1 rounded-lg bg-sky-600 px-3 py-1.5 text-sm text-white disabled:opacity-60"
               >
                 <ArrowRight size={14} />
-                {connecting ? 'Opening OAuth...' : 'Connect Microsoft'}
+                {connecting ? 'Opening OAuth...' : 'Connect Microsoft (All Apps)'}
               </button>
             )}
           </div>
@@ -557,4 +557,3 @@ const AppsPage = () => {
 };
 
 export default AppsPage;
-

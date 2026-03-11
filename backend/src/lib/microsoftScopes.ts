@@ -7,6 +7,8 @@ export type MicrosoftAppKey =
   | 'powerpoint'
   | 'teams';
 
+export type MicrosoftScopeTarget = MicrosoftAppKey | 'all';
+
 export const MICROSOFT_BASE_SCOPES = ['openid', 'profile', 'offline_access', 'User.Read'];
 
 const FILE_SCOPES = ['Files.Read', 'Files.ReadWrite', 'Sites.Read.All'];
@@ -21,6 +23,16 @@ export const MICROSOFT_APP_SCOPES: Record<MicrosoftAppKey, string[]> = {
   teams: ['Chat.Read', 'OnlineMeetings.Read'],
 };
 
+export const MICROSOFT_ALL_APP_KEYS: MicrosoftAppKey[] = [
+  'outlook',
+  'calendar',
+  'onedrive',
+  'word',
+  'excel',
+  'powerpoint',
+  'teams',
+];
+
 export const MICROSOFT_APP_LABELS: Record<MicrosoftAppKey, string> = {
   outlook: 'Outlook',
   calendar: 'Calendar',
@@ -34,12 +46,22 @@ export const MICROSOFT_APP_LABELS: Record<MicrosoftAppKey, string> = {
 export const isMicrosoftAppKey = (value: string | null | undefined): value is MicrosoftAppKey =>
   Boolean(value && value in MICROSOFT_APP_SCOPES);
 
-export const resolveScopesForApp = (app?: MicrosoftAppKey | null): string[] => {
-  if (!app) return [...MICROSOFT_BASE_SCOPES];
+export const isMicrosoftScopeTarget = (
+  value: string | null | undefined,
+): value is MicrosoftScopeTarget => Boolean(value === 'all' || isMicrosoftAppKey(value));
+
+export const resolveScopesForApp = (app?: MicrosoftScopeTarget | null): string[] => {
+  if (!app) app = 'all';
+
+  if (app === 'all') {
+    const allScopes = MICROSOFT_ALL_APP_KEYS.flatMap((key) => MICROSOFT_APP_SCOPES[key]);
+    return Array.from(new Set([...MICROSOFT_BASE_SCOPES, ...allScopes]));
+  }
+
   return Array.from(new Set([...MICROSOFT_BASE_SCOPES, ...MICROSOFT_APP_SCOPES[app]]));
 };
 
-export const createOAuthState = (input: { nonce: string; app?: MicrosoftAppKey | null }) => {
+export const createOAuthState = (input: { nonce: string; app?: MicrosoftScopeTarget | null }) => {
   const payload = {
     n: input.nonce,
     a: input.app || null,
@@ -60,7 +82,7 @@ export const parseOAuthState = (
   state?: string | null,
 ): {
   nonce?: string;
-  app?: MicrosoftAppKey;
+  app?: MicrosoftScopeTarget;
 } => {
   if (!state) return {};
   try {
@@ -77,7 +99,9 @@ export const parseOAuthState = (
       );
     }
     const parsed = JSON.parse(decoded) as { n?: string; a?: string };
-    const app = isMicrosoftAppKey(parsed?.a || '') ? (parsed.a as MicrosoftAppKey) : undefined;
+    const app = isMicrosoftScopeTarget(parsed?.a || '')
+      ? (parsed.a as MicrosoftScopeTarget)
+      : undefined;
     return {
       nonce: parsed?.n,
       app,

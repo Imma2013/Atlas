@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import {
   clearGoogleTokens,
   getGoogleAccessToken,
@@ -54,6 +55,14 @@ type LocalActivityItem = {
   created_at: string;
   links?: Record<string, string>;
 };
+
+type ChatSessionSnapshot = {
+  includeWeb: boolean;
+  input: string;
+  messages: ChatMessage[];
+};
+
+let inMemoryChatSession: ChatSessionSnapshot | null = null;
 
 const GOOGLE_CONNECTORS_ENABLED =
   process.env.NEXT_PUBLIC_ENABLE_GOOGLE_CONNECTORS === 'true';
@@ -204,7 +213,7 @@ const extractLinksFromText = (text: string) => {
 const LinkifiedText = ({ text }: { text: string }) => {
   const parts = text.split(/(https?:\/\/[^\s)]+)/g);
   return (
-    <div className="break-words text-sm leading-6 text-black">
+    <div className="break-words text-sm leading-6 text-black dark:text-white/88">
       {parts.map((part, index) => {
         if (/^https?:\/\//.test(part)) {
           return (
@@ -235,9 +244,14 @@ const LinkifiedText = ({ text }: { text: string }) => {
 };
 
 const ChatPage = () => {
-  const [includeWeb, setIncludeWeb] = useState(true);
-  const [input, setInput] = useState('');
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const searchParams = useSearchParams();
+  const [includeWeb, setIncludeWeb] = useState(
+    () => inMemoryChatSession?.includeWeb ?? true,
+  );
+  const [input, setInput] = useState(() => inMemoryChatSession?.input ?? '');
+  const [messages, setMessages] = useState<ChatMessage[]>(
+    () => inMemoryChatSession?.messages ?? [],
+  );
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [connectorOpen, setConnectorOpen] = useState(false);
@@ -280,6 +294,51 @@ const ChatPage = () => {
   useEffect(() => {
     refreshConnections();
   }, []);
+
+  useEffect(() => {
+    inMemoryChatSession = {
+      includeWeb,
+      input,
+      messages,
+    };
+  }, [includeWeb, input, messages]);
+
+  useEffect(() => {
+    if (searchParams.get('fromActivity') !== '1') return;
+    if (typeof window === 'undefined') return;
+
+    const raw = sessionStorage.getItem('atlasOpenActivityItem');
+    if (!raw) return;
+
+    try {
+      const item = JSON.parse(raw) as LocalActivityItem;
+      const links = item.links
+        ? Object.values(item.links)
+            .filter((href) => typeof href === 'string' && href.length > 0)
+            .slice(0, 4)
+        : [];
+      const assistantText = [
+        item.summary,
+        links.length > 0 ? `\n\nLinks:\n${links.join('\n')}` : '',
+      ]
+        .join('')
+        .trim();
+
+      setMessages([
+        { role: 'user', text: item.title || 'Activity item' },
+        { role: 'assistant', text: assistantText || 'No summary available.' },
+      ]);
+      setError('');
+      setLoading(false);
+      setInput('');
+      localStorage.setItem('atlasActiveChatId', `activity-${item.id}`);
+    } catch {
+      // Ignore malformed activity payloads.
+    } finally {
+      sessionStorage.removeItem('atlasOpenActivityItem');
+      window.history.replaceState({}, '', '/chat');
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
@@ -434,7 +493,7 @@ const ChatPage = () => {
       const isGmail = target.pendingDraft.provider === 'gmail';
       const token = isGmail
         ? await getGoogleAccessToken('gmail')
-        : await getMicrosoftAccessToken('outlook');
+        : await getMicrosoftAccessToken();
       if (!token) {
         throw new Error(
           isGmail
@@ -505,224 +564,253 @@ const ChatPage = () => {
   }, [connectors]);
 
   return (
-    <div className="mx-auto flex h-[calc(100vh-1rem)] max-w-5xl flex-col px-4 py-4 md:px-6">
-      {messages.length === 0 ? (
-        <div className="flex flex-1 items-center justify-center rounded-2xl border border-light-200 bg-white p-3">
-          <div className="text-center">
-            <h1 className="text-5xl font-medium tracking-tight text-black">What can I do for you?</h1>
-            <p className="mt-3 text-sm text-black/60">
-              Astro Agent for Outlook, OneDrive, Word, Excel, PowerPoint, Teams, and Calendar.
-            </p>
-          </div>
+    <div className="mx-auto flex h-[calc(100vh-1rem)] max-w-6xl flex-col px-3 py-3 md:px-6 md:py-5">
+      <div className="relative flex h-full flex-col overflow-hidden rounded-[30px] border border-black/10 bg-[radial-gradient(circle_at_top_left,#eef4ff_0%,#f8fbff_32%,#ffffff_68%)] p-3 shadow-[0_24px_80px_-48px_rgba(18,48,90,0.55)] dark:border-white/10 dark:bg-[radial-gradient(circle_at_top_left,#182235_0%,#111825_35%,#090d16_70%)] dark:shadow-[0_24px_80px_-48px_rgba(0,0,0,0.92)] md:p-5">
+        <div className="pointer-events-none absolute -left-24 -top-20 h-56 w-56 rounded-full bg-cyan-300/20 blur-3xl dark:bg-cyan-500/15" />
+        <div className="pointer-events-none absolute -bottom-20 -right-24 h-56 w-56 rounded-full bg-amber-300/20 blur-3xl dark:bg-amber-500/10" />
+        <div className="relative mb-3 flex items-center justify-between gap-2">
+          <p className="text-[11px] uppercase tracking-[0.18em] text-black/55 dark:text-white/55">
+            Atlas Workspace
+          </p>
+          <p className="text-[11px] text-black/55 dark:text-white/55">
+            {messages.length} message{messages.length === 1 ? '' : 's'}
+          </p>
         </div>
-      ) : (
-      <div className="flex-1 overflow-y-auto rounded-2xl border border-light-200 bg-white p-3">
-        <div className="space-y-3">
-          {messages.map((message, index) => (
-            <div
-              key={`${message.role}-${index}`}
-              className={`rounded-xl border p-3 ${
-                message.role === 'user' ? 'border-sky-200 bg-sky-50' : 'border-light-200 bg-white'
-              }`}
-            >
-              <p className="mb-1 text-xs uppercase tracking-wide text-black/50">{message.role}</p>
-              <LinkifiedText text={message.text} />
 
-              {message.role === 'assistant' && message.pendingDraft ? (
-                <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3">
-                  <p className="text-xs font-semibold uppercase tracking-[0.1em] text-amber-700">
-                    {message.pendingDraft.provider === 'gmail' ? 'Gmail' : 'Outlook'} Draft Review
-                  </p>
-                  <p className="mt-1 text-xs text-black/70">Draft only. It will never send automatically.</p>
-                  <p className="mt-2 text-xs text-black">
-                    <span className="font-semibold">To:</span> {message.pendingDraft.to.join(', ')}
-                  </p>
-                  <p className="text-xs text-black">
-                    <span className="font-semibold">Subject:</span> {message.pendingDraft.subject}
-                  </p>
-                  <pre className="mt-2 max-h-40 overflow-auto whitespace-pre-wrap rounded-lg bg-white p-2 text-xs text-black/85">
-                    {message.pendingDraft.body}
-                  </pre>
-                  <div className="mt-2 flex flex-wrap items-center gap-2">
-                    <button
-                      type="button"
-                      disabled={message.draftState === 'creating' || message.draftState === 'created'}
-                      onClick={() =>
-                        setMessages((prev) =>
-                          prev.map((item, itemIndex) =>
-                            itemIndex === index ? { ...item, draftState: 'cancelled', draftError: '' } : item,
-                          ),
-                        )
-                      }
-                      className="inline-flex items-center gap-1 rounded-lg border border-black/15 bg-white px-2.5 py-1.5 text-xs text-black disabled:opacity-50"
-                    >
-                      <X size={12} />
-                      Cancel
-                    </button>
-                    <button
-                      type="button"
-                      disabled={message.draftState === 'creating' || message.draftState === 'created'}
-                      onClick={() => createEmailDraft(index)}
-                      className="inline-flex items-center gap-1 rounded-lg bg-black px-2.5 py-1.5 text-xs text-white disabled:opacity-50"
-                    >
-                      <Check size={12} />
-                      {message.draftState === 'creating' ? 'Creating...' : 'Create Draft'}
-                    </button>
-                    {message.draftState === 'created' && message.draftWebLink ? (
-                      <a
-                        href={message.draftWebLink}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-xs text-emerald-700"
-                      >
-                        Open Draft
-                      </a>
+        {messages.length === 0 ? (
+          <div className="relative flex flex-1 items-center justify-center overflow-hidden rounded-3xl border border-black/10 bg-white/70 p-4 dark:border-white/10 dark:bg-white/[0.02]">
+            <div className="text-center">
+              <h1 className="font-['PP_Editorial',serif] text-5xl leading-[0.94] text-black dark:text-white md:text-6xl">
+                What can I do for you?
+              </h1>
+              <p className="mx-auto mt-4 max-w-2xl text-sm text-black/65 dark:text-white/65">
+                Unified assistant for Outlook, OneDrive, Word, Excel, PowerPoint, Teams, and Calendar.
+              </p>
+            </div>
+          </div>
+        ) : (
+          <div className="flex-1 overflow-y-auto rounded-3xl border border-black/10 bg-white/70 p-3 backdrop-blur-sm dark:border-white/10 dark:bg-white/[0.02] md:p-4">
+            <div className="space-y-4">
+              {messages.map((message, index) => (
+                <div
+                  key={`${message.role}-${index}`}
+                  className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                >
+                  <div
+                    className={`w-full max-w-[92%] rounded-2xl border px-4 py-3 md:max-w-[84%] ${
+                      message.role === 'user'
+                        ? 'border-cyan-300/50 bg-cyan-50/90 dark:border-cyan-500/35 dark:bg-cyan-500/10'
+                        : 'border-black/10 bg-white/92 dark:border-white/10 dark:bg-white/[0.03]'
+                    }`}
+                  >
+                    <p className="mb-1 text-xs uppercase tracking-wide text-black/50 dark:text-white/55">
+                      {message.role}
+                    </p>
+                    <LinkifiedText text={message.text} />
+
+                    {message.role === 'assistant' && message.pendingDraft ? (
+                      <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3 dark:border-amber-300/30 dark:bg-amber-500/10">
+                        <p className="text-xs font-semibold uppercase tracking-[0.1em] text-amber-700 dark:text-amber-200">
+                          {message.pendingDraft.provider === 'gmail' ? 'Gmail' : 'Outlook'} Draft Review
+                        </p>
+                        <p className="mt-1 text-xs text-black/70 dark:text-white/75">
+                          Draft only. It will never send automatically.
+                        </p>
+                        <p className="mt-2 text-xs text-black dark:text-white/85">
+                          <span className="font-semibold">To:</span> {message.pendingDraft.to.join(', ')}
+                        </p>
+                        <p className="text-xs text-black dark:text-white/85">
+                          <span className="font-semibold">Subject:</span> {message.pendingDraft.subject}
+                        </p>
+                        <pre className="mt-2 max-h-40 overflow-auto whitespace-pre-wrap rounded-lg bg-white p-2 text-xs text-black/85 dark:bg-black/40 dark:text-white/85">
+                          {message.pendingDraft.body}
+                        </pre>
+                        <div className="mt-2 flex flex-wrap items-center gap-2">
+                          <button
+                            type="button"
+                            disabled={message.draftState === 'creating' || message.draftState === 'created'}
+                            onClick={() =>
+                              setMessages((prev) =>
+                                prev.map((item, itemIndex) =>
+                                  itemIndex === index ? { ...item, draftState: 'cancelled', draftError: '' } : item,
+                                ),
+                              )
+                            }
+                            className="inline-flex items-center gap-1 rounded-lg border border-black/15 bg-white px-2.5 py-1.5 text-xs text-black disabled:opacity-50 dark:border-white/20 dark:bg-black/30 dark:text-white"
+                          >
+                            <X size={12} />
+                            Cancel
+                          </button>
+                          <button
+                            type="button"
+                            disabled={message.draftState === 'creating' || message.draftState === 'created'}
+                            onClick={() => createEmailDraft(index)}
+                            className="inline-flex items-center gap-1 rounded-lg bg-black px-2.5 py-1.5 text-xs text-white disabled:opacity-50 dark:bg-white dark:text-black"
+                          >
+                            <Check size={12} />
+                            {message.draftState === 'creating' ? 'Creating...' : 'Create Draft'}
+                          </button>
+                          {message.draftState === 'created' && message.draftWebLink ? (
+                            <a
+                              href={message.draftWebLink}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-xs text-emerald-700"
+                            >
+                              Open Draft
+                            </a>
+                          ) : null}
+                        </div>
+                        {message.draftState === 'failed' && message.draftError ? (
+                          <p className="mt-2 text-xs text-red-600">{message.draftError}</p>
+                        ) : null}
+                      </div>
+                    ) : null}
+
+                    {message.role === 'assistant' && message.downloads && message.downloads.length > 0 ? (
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {message.downloads.map((download, downloadIndex) => {
+                          const label = `${download.kind.toUpperCase()}${download.origin === 'local' ? ' (Download)' : ''}`;
+                          if (download.webUrl) {
+                            return (
+                              <a
+                                key={`${download.fileName}-${downloadIndex}`}
+                                href={download.webUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="rounded-lg border border-black/10 bg-white px-3 py-1.5 text-xs text-sky-700 underline underline-offset-2 hover:bg-light-100 dark:border-white/20 dark:bg-white/[0.04]"
+                              >
+                                {label}
+                              </a>
+                            );
+                          }
+
+                          return (
+                            <button
+                              key={`${download.fileName}-${downloadIndex}`}
+                              type="button"
+                              onClick={() => {
+                                if (!download.contentBase64) return;
+                                const blob = new Blob([decodeBase64ToBytes(download.contentBase64)], {
+                                  type: download.mimeType || 'application/octet-stream',
+                                });
+                                const url = URL.createObjectURL(blob);
+                                const link = document.createElement('a');
+                                link.href = url;
+                                link.download = download.fileName;
+                                document.body.appendChild(link);
+                                link.click();
+                                link.remove();
+                                setTimeout(() => URL.revokeObjectURL(url), 1200);
+                              }}
+                              className="rounded-lg border border-black/10 bg-white px-3 py-1.5 text-xs text-black hover:bg-light-100 dark:border-white/20 dark:bg-white/[0.04] dark:text-white"
+                            >
+                              {label}
+                            </button>
+                          );
+                        })}
+                      </div>
                     ) : null}
                   </div>
-                  {message.draftState === 'failed' && message.draftError ? (
-                    <p className="mt-2 text-xs text-red-600">{message.draftError}</p>
-                  ) : null}
                 </div>
-              ) : null}
+              ))}
+              {loading ? <p className="text-sm text-black/60 dark:text-white/60">Astro Agent is working...</p> : null}
+              <div ref={messagesEndRef} />
+            </div>
+          </div>
+        )}
 
-              {message.role === 'assistant' && message.downloads && message.downloads.length > 0 ? (
-                <div className="mt-3 flex flex-wrap gap-2">
-                  {message.downloads.map((download, downloadIndex) => {
-                    const label = `${download.kind.toUpperCase()}${download.origin === 'local' ? ' (Download)' : ''}`;
-                    if (download.webUrl) {
-                      return (
-                        <a
-                          key={`${download.fileName}-${downloadIndex}`}
-                          href={download.webUrl}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="rounded-lg border border-light-200 bg-white px-3 py-1.5 text-xs text-sky-700 underline underline-offset-2 hover:bg-light-100"
-                        >
-                          {label}
-                        </a>
-                      );
-                    }
+        <div className="sticky bottom-0 mt-3 shrink-0 rounded-3xl border border-black/10 bg-white/90 p-3 backdrop-blur-md shadow-[0_18px_40px_-30px_rgba(0,0,0,0.65)] dark:border-white/10 dark:bg-black/55">
+          <textarea
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                submit();
+              }
+            }}
+            rows={2}
+            placeholder="Assign a task or ask anything"
+            className="w-full resize-none rounded-xl border-none bg-transparent px-2 py-2 text-sm text-black outline-none placeholder:text-black/45 dark:text-white dark:placeholder:text-white/40"
+          />
+          <div className="mt-2 flex items-center justify-between gap-2">
+            <div className="relative flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setConnectorOpen((prev) => !prev)}
+                className="inline-flex items-center gap-1 rounded-full border border-black/10 bg-white px-2.5 py-1.5 text-xs font-medium text-black/75 dark:border-white/20 dark:bg-white/[0.03] dark:text-white/80"
+              >
+                <Plus size={13} />
+                Connect
+                <ChevronDown size={12} />
+              </button>
+              <button
+                type="button"
+                onClick={() => setIncludeWeb((prev) => !prev)}
+                className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1.5 text-xs font-medium ${
+                  includeWeb
+                    ? 'border-cyan-300 bg-cyan-50 text-cyan-700 dark:border-cyan-400/40 dark:bg-cyan-500/15 dark:text-cyan-200'
+                    : 'border-black/10 bg-white text-black/70 dark:border-white/20 dark:bg-white/[0.03] dark:text-white/75'
+                }`}
+              >
+                <Globe size={13} />
+                Web {includeWeb ? 'On' : 'Off'}
+              </button>
 
-                    return (
-                      <button
-                        key={`${download.fileName}-${downloadIndex}`}
-                        type="button"
-                        onClick={() => {
-                          if (!download.contentBase64) return;
-                          const blob = new Blob([decodeBase64ToBytes(download.contentBase64)], {
-                            type: download.mimeType || 'application/octet-stream',
-                          });
-                          const url = URL.createObjectURL(blob);
-                          const link = document.createElement('a');
-                          link.href = url;
-                          link.download = download.fileName;
-                          document.body.appendChild(link);
-                          link.click();
-                          link.remove();
-                          setTimeout(() => URL.revokeObjectURL(url), 1200);
-                        }}
-                        className="rounded-lg border border-light-200 bg-white px-3 py-1.5 text-xs text-black hover:bg-light-100"
+              {connectorOpen ? (
+                <div className="absolute bottom-10 left-0 z-30 w-[330px] rounded-2xl border border-black/10 bg-white p-3 shadow-xl dark:border-white/10 dark:bg-[#0f1522]">
+                  <p className="mb-2 text-xs font-semibold uppercase tracking-[0.1em] text-black/45 dark:text-white/45">
+                    Connectors
+                  </p>
+                  {!GOOGLE_CONNECTORS_ENABLED ? (
+                    <p className="mb-2 rounded-lg border border-amber-200 bg-amber-50 px-2 py-1 text-xs text-amber-700">
+                      Google connectors are hidden until OAuth verification is finished.
+                    </p>
+                  ) : null}
+                  <div className="max-h-72 space-y-2 overflow-auto pr-1">
+                    {connectorRows.map((item) => (
+                      <div
+                        key={`${item.provider}:${item.key}`}
+                        className="flex items-center justify-between rounded-lg border border-black/10 px-2 py-1.5 dark:border-white/10"
                       >
-                        {label}
-                      </button>
-                    );
-                  })}
+                        <div className="flex items-center gap-2">
+                          <img src={item.icon} alt={`${item.label} icon`} className="h-4 w-4 rounded-sm" />
+                          <p className="text-sm text-black/80 dark:text-white/80">{item.label}</p>
+                        </div>
+                        {item.state ? (
+                          <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs text-emerald-700">
+                            Connected
+                          </span>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={item.run}
+                            disabled={connectingKey.length > 0}
+                            className="inline-flex items-center gap-1 rounded-md border border-black/10 px-2 py-1 text-xs text-black disabled:opacity-60 dark:border-white/20 dark:text-white"
+                          >
+                            <Link2 size={12} />
+                            {connectingKey ? 'Connecting...' : 'Connect'}
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
                 </div>
               ) : null}
             </div>
-          ))}
-          {loading ? <p className="text-sm text-black/60">Astro Agent is working...</p> : null}
-          <div ref={messagesEndRef} />
-        </div>
-      </div>
-      )}
 
-      <div className="sticky bottom-0 mt-3 shrink-0 rounded-2xl border border-black/10 bg-white p-3 shadow-[0_8px_30px_-20px_rgba(0,0,0,0.4)]">
-        <textarea
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
-              e.preventDefault();
-              submit();
-            }
-          }}
-          rows={2}
-          placeholder="Assign a task or ask anything"
-          className="w-full resize-none rounded-xl border-none bg-transparent px-2 py-2 text-sm outline-none"
-        />
-        <div className="mt-2 flex items-center justify-between gap-2">
-          <div className="relative flex items-center gap-2">
             <button
-              type="button"
-              onClick={() => setConnectorOpen((prev) => !prev)}
-              className="inline-flex items-center gap-1 rounded-full border border-black/10 bg-white px-2.5 py-1.5 text-xs font-medium text-black/75"
+              onClick={submit}
+              disabled={loading}
+              className="inline-flex items-center gap-1 rounded-xl bg-black px-4 py-2 text-sm font-medium text-white disabled:opacity-60 dark:bg-white dark:text-black"
             >
-              <Plus size={13} />
-              Connect
-              <ChevronDown size={12} />
+              <SendHorizonal size={14} />
+              {loading ? 'Running...' : 'Send'}
             </button>
-            <button
-              type="button"
-              onClick={() => setIncludeWeb((prev) => !prev)}
-              className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1.5 text-xs font-medium ${
-                includeWeb ? 'border-sky-300 bg-sky-50 text-sky-700' : 'border-black/10 bg-white text-black/70'
-              }`}
-            >
-              <Globe size={13} />
-              Web {includeWeb ? 'On' : 'Off'}
-            </button>
-
-            {connectorOpen ? (
-              <div className="absolute bottom-10 left-0 z-30 w-[330px] rounded-2xl border border-black/10 bg-white p-3 shadow-xl">
-                <p className="mb-2 text-xs font-semibold uppercase tracking-[0.1em] text-black/45">Connectors</p>
-                {!GOOGLE_CONNECTORS_ENABLED ? (
-                  <p className="mb-2 rounded-lg border border-amber-200 bg-amber-50 px-2 py-1 text-xs text-amber-700">
-                    Google connectors are hidden until OAuth verification is finished.
-                  </p>
-                ) : null}
-                <div className="max-h-72 space-y-2 overflow-auto pr-1">
-                  {connectorRows.map((item) => (
-                    <div
-                      key={`${item.provider}:${item.key}`}
-                      className="flex items-center justify-between rounded-lg border border-black/10 px-2 py-1.5"
-                    >
-                      <div className="flex items-center gap-2">
-                        <img src={item.icon} alt={`${item.label} icon`} className="h-4 w-4 rounded-sm" />
-                        <p className="text-sm text-black/80">{item.label}</p>
-                      </div>
-                      {item.state ? (
-                        <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs text-emerald-700">
-                          Connected
-                        </span>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={item.run}
-                          disabled={connectingKey.length > 0}
-                          className="inline-flex items-center gap-1 rounded-md border border-black/10 px-2 py-1 text-xs text-black disabled:opacity-60"
-                        >
-                          <Link2 size={12} />
-                          {connectingKey ? 'Connecting...' : 'Connect'}
-                        </button>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ) : null}
           </div>
-
-          <button
-            onClick={submit}
-            disabled={loading}
-            className="inline-flex items-center gap-1 rounded-xl bg-black px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
-          >
-            <SendHorizonal size={14} />
-            {loading ? 'Running...' : 'Send'}
-          </button>
+          {error ? <p className="mt-2 text-sm text-red-600">{error}</p> : null}
         </div>
-        {error ? <p className="mt-2 text-sm text-red-600">{error}</p> : null}
       </div>
     </div>
   );

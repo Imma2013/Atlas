@@ -1,5 +1,5 @@
 import { resolveScopesForApp } from '@/lib/microsoftScopes';
-import type { MicrosoftAppKey } from '@/lib/microsoftScopes';
+import type { MicrosoftAppKey, MicrosoftScopeTarget } from '@/lib/microsoftScopes';
 const GRAPH_BASE_URL = 'https://graph.microsoft.com/v1.0';
 
 const normalizeAppBaseUrl = (value?: string) =>
@@ -49,7 +49,7 @@ const graphRequest = async <T>(
 
 export const getMicrosoftAuthUrl = (input?: {
   state?: string;
-  app?: MicrosoftAppKey;
+  app?: MicrosoftScopeTarget;
 }): string => {
   const tenant = process.env.MICROSOFT_TENANT_ID || 'common';
   const clientId = process.env.MICROSOFT_CLIENT_ID;
@@ -76,7 +76,7 @@ export const getMicrosoftAuthUrl = (input?: {
 
 export const exchangeMicrosoftCode = async (input: {
   code: string;
-  app?: MicrosoftAppKey;
+  app?: MicrosoftScopeTarget;
 }) => {
   const tenant = process.env.MICROSOFT_TENANT_ID || 'common';
   const clientId = process.env.MICROSOFT_CLIENT_ID;
@@ -204,7 +204,7 @@ export const getDriveItemBuffer = async (accessToken: string, id: string) => {
 
 export const refreshMicrosoftToken = async (input: {
   refreshToken: string;
-  app?: MicrosoftAppKey;
+  app?: MicrosoftScopeTarget;
 }) => {
   const tenant = process.env.MICROSOFT_TENANT_ID || 'common';
   const clientId = process.env.MICROSOFT_CLIENT_ID;

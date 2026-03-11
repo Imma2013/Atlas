@@ -8,7 +8,7 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { useSelectedLayoutSegments } from 'next/navigation';
-import React, { useState, type ReactNode } from 'react';
+import React, { type ReactNode } from 'react';
 import Layout from './Layout';
 
 const VerticalIconContainer = ({ children }: { children: ReactNode }) => {
@@ -17,7 +17,6 @@ const VerticalIconContainer = ({ children }: { children: ReactNode }) => {
 
 const Sidebar = ({ children }: { children: React.ReactNode }) => {
   const segments = useSelectedLayoutSegments();
-  const [isOpen, setIsOpen] = useState<boolean>(true);
 
   const navLinks = [
     {
@@ -45,41 +44,42 @@ const Sidebar = ({ children }: { children: React.ReactNode }) => {
 
   return (
     <div>
-      <div className="hidden lg:fixed lg:inset-y-0 lg:z-50 lg:flex lg:w-[72px] lg:flex-col border-r border-light-200 dark:border-dark-200">
-        <div className="flex grow flex-col items-center justify-between gap-y-5 overflow-y-auto bg-light-secondary dark:bg-dark-secondary px-2 py-8 shadow-sm shadow-light-200/10 dark:shadow-black/25">
-          <div className="h-11" />
+      <div className="hidden lg:fixed lg:inset-y-0 lg:z-50 lg:flex lg:w-[88px] lg:flex-col">
+        <div className="m-4 flex grow flex-col items-center justify-between gap-y-5 overflow-y-auto rounded-3xl border border-black/10 bg-white/70 px-2 py-8 shadow-[0_20px_45px_-35px_rgba(0,0,0,0.75)] backdrop-blur-md dark:border-white/10 dark:bg-white/[0.03]">
+          <div className="h-4" />
           <VerticalIconContainer>
             {navLinks.map((link, i) => (
               <Link
                 key={i}
                 href={link.href}
                 className={cn(
-                  'relative flex flex-col items-center justify-center space-y-0.5 cursor-pointer w-full py-2 rounded-lg',
+                  'relative flex w-full cursor-pointer flex-col items-center justify-center space-y-0.5 rounded-xl py-2',
                   link.active
-                    ? 'text-black/70 dark:text-white/70 '
-                    : 'text-black/60 dark:text-white/60',
+                    ? 'text-black dark:text-white'
+                    : 'text-black/60 dark:text-white/65',
                 )}
               >
                 <div
                   className={cn(
-                    link.active && 'bg-light-200 dark:bg-dark-200',
-                    'group rounded-lg hover:bg-light-200 hover:dark:bg-dark-200 transition duration-200',
+                    link.active &&
+                      'bg-gradient-to-br from-cyan-200 to-cyan-50 shadow-[0_8px_20px_-14px_rgba(0,0,0,0.5)] dark:from-cyan-500/35 dark:to-cyan-400/5',
+                    'group rounded-xl border border-transparent transition duration-200 hover:border-black/10 hover:bg-black/[0.03] dark:hover:border-white/15 dark:hover:bg-white/[0.04]',
                   )}
                 >
                   <link.icon
                     size={25}
                     className={cn(
                       !link.active && 'group-hover:scale-105',
-                      'transition duration:200 m-1.5',
+                      'm-1.5 transition duration-200',
                     )}
                   />
                 </div>
                 <p
                   className={cn(
                     link.active
-                      ? 'text-black/80 dark:text-white/80'
+                      ? 'text-black/85 dark:text-white/85'
                       : 'text-black/60 dark:text-white/60',
-                    'text-[10px]',
+                    'text-[10px] uppercase tracking-[0.12em]',
                   )}
                 >
                   {link.label}
@@ -87,11 +87,11 @@ const Sidebar = ({ children }: { children: React.ReactNode }) => {
               </Link>
             ))}
           </VerticalIconContainer>
-          <div className="h-8" />
+          <div className="h-2" />
         </div>
       </div>
 
-      <div className="fixed bottom-0 w-full z-50 flex flex-row items-center gap-x-6 bg-light-secondary dark:bg-dark-secondary px-4 py-4 shadow-sm lg:hidden">
+      <div className="fixed bottom-0 z-50 flex w-full flex-row items-center gap-x-6 border-t border-black/10 bg-white/85 px-4 py-4 backdrop-blur-md dark:border-white/10 dark:bg-black/60 lg:hidden">
         {navLinks.map((link, i) => (
           <Link
             href={link.href}
@@ -100,11 +100,11 @@ const Sidebar = ({ children }: { children: React.ReactNode }) => {
               'relative flex flex-col items-center space-y-1 text-center w-full',
               link.active
                 ? 'text-black dark:text-white'
-                : 'text-black dark:text-white/70',
+                : 'text-black/70 dark:text-white/70',
             )}
           >
             {link.active && (
-              <div className="absolute top-0 -mt-4 h-1 w-full rounded-b-lg bg-black dark:bg-white" />
+              <div className="absolute top-0 -mt-4 h-1 w-full rounded-b-lg bg-cyan-500 dark:bg-cyan-300" />
             )}
             <link.icon />
             <p className="text-xs">{link.label}</p>

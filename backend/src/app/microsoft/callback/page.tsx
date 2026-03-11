@@ -29,7 +29,12 @@ const MicrosoftCallbackPage = () => {
 
       try {
         const parsedState = parseOAuthState(state);
-        const appLabel = parsedState.app ? MICROSOFT_APP_LABELS[parsedState.app] : 'Microsoft';
+        const appLabel =
+          parsedState.app === 'all'
+            ? 'Microsoft 365 (All Apps)'
+            : parsedState.app
+              ? MICROSOFT_APP_LABELS[parsedState.app]
+              : 'Microsoft';
         setStatus(`Finalizing ${appLabel} connection...`);
         const response = await fetch(
           `/api/microsoft/auth?code=${encodeURIComponent(code)}${state ? `&state=${encodeURIComponent(state)}` : ''}`,

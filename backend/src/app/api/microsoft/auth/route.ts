@@ -1,5 +1,5 @@
 import { exchangeMicrosoftCode, getMicrosoftAuthUrl } from '@/lib/microsoft';
-import { createOAuthState, isMicrosoftAppKey, parseOAuthState } from '@/lib/microsoftScopes';
+import { createOAuthState, isMicrosoftScopeTarget, parseOAuthState } from '@/lib/microsoftScopes';
 
 export const runtime = 'nodejs';
 
@@ -9,7 +9,7 @@ export const GET = async (req: Request) => {
     const code = searchParams.get('code');
     const state = searchParams.get('state') || undefined;
     const appParam = searchParams.get('app');
-    const app = isMicrosoftAppKey(appParam) ? appParam : undefined;
+    const app = isMicrosoftScopeTarget(appParam) ? appParam : undefined;
 
     if (!code) {
       const nonce = state || crypto.randomUUID();

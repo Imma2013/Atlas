@@ -1,7 +1,7 @@
 const Layout = ({ children }: { children: React.ReactNode }) => {
   return (
-    <main className="lg:pl-20 bg-light-primary dark:bg-dark-primary min-h-screen">
-      <div className="max-w-screen-lg lg:mx-auto mx-4">{children}</div>
+    <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,#e8eef7_0%,#f4f7fb_45%,#f8fafc_72%)] lg:pl-24 dark:bg-[radial-gradient(circle_at_top_left,#0e1726_0%,#0a0f1a_45%,#070b14_72%)]">
+      <div className="mx-3 max-w-screen-xl lg:mx-auto">{children}</div>
     </main>
   );
 };
