@@ -388,25 +388,123 @@ const ChatPage = () => {
                   </p>
                   <div className="max-h-72 space-y-2 overflow-auto pr-1">
                     {[
-                      { key: 'gmail', label: 'Gmail', state: connectors.google.gmail, run: () => connectGoogle('gmail') },
-                      { key: 'calendar-g', label: 'Google Calendar', state: connectors.google.calendar, run: () => connectGoogle('calendar') },
-                      { key: 'drive', label: 'Google Drive', state: connectors.google.drive, run: () => connectGoogle('drive') },
-                      { key: 'docs', label: 'Google Docs', state: connectors.google.docs, run: () => connectGoogle('docs') },
-                      { key: 'sheets', label: 'Google Sheets', state: connectors.google.sheets, run: () => connectGoogle('sheets') },
-                      { key: 'slides', label: 'Google Slides', state: connectors.google.slides, run: () => connectGoogle('slides') },
-                      { key: 'outlook', label: 'Outlook Mail', state: connectors.microsoft.outlook, run: () => connectMicrosoft('outlook') },
-                      { key: 'calendar-m', label: 'Outlook Calendar', state: connectors.microsoft.calendar, run: () => connectMicrosoft('calendar') },
-                      { key: 'word', label: 'Word', state: connectors.microsoft.word, run: () => connectMicrosoft('word') },
-                      { key: 'excel', label: 'Excel', state: connectors.microsoft.excel, run: () => connectMicrosoft('excel') },
-                      { key: 'powerpoint', label: 'PowerPoint', state: connectors.microsoft.powerpoint, run: () => connectMicrosoft('powerpoint') },
-                      { key: 'onedrive', label: 'OneDrive', state: connectors.microsoft.onedrive, run: () => connectMicrosoft('onedrive') },
-                      { key: 'teams', label: 'Teams', state: connectors.microsoft.teams, run: () => connectMicrosoft('teams') },
+                      {
+                        key: 'gmail',
+                        label: 'Gmail',
+                        icon:
+                          'https://ssl.gstatic.com/ui/v1/icons/mail/rfr/gmail.ico',
+                        state: connectors.google.gmail,
+                        run: () => connectGoogle('gmail'),
+                      },
+                      {
+                        key: 'calendar-g',
+                        label: 'Google Calendar',
+                        icon:
+                          'https://ssl.gstatic.com/calendar/images/dynamiclogo_2020q4/calendar_31_2x.png',
+                        state: connectors.google.calendar,
+                        run: () => connectGoogle('calendar'),
+                      },
+                      {
+                        key: 'drive',
+                        label: 'Google Drive',
+                        icon:
+                          'https://ssl.gstatic.com/images/branding/product/2x/drive_2020q4_32dp.png',
+                        state: connectors.google.drive,
+                        run: () => connectGoogle('drive'),
+                      },
+                      {
+                        key: 'docs',
+                        label: 'Google Docs',
+                        icon:
+                          'https://ssl.gstatic.com/docs/doclist/images/mediatype/icon_1_document_x32.png',
+                        state: connectors.google.docs,
+                        run: () => connectGoogle('docs'),
+                      },
+                      {
+                        key: 'sheets',
+                        label: 'Google Sheets',
+                        icon:
+                          'https://ssl.gstatic.com/docs/doclist/images/mediatype/icon_1_spreadsheet_x32.png',
+                        state: connectors.google.sheets,
+                        run: () => connectGoogle('sheets'),
+                      },
+                      {
+                        key: 'slides',
+                        label: 'Google Slides',
+                        icon:
+                          'https://ssl.gstatic.com/docs/doclist/images/mediatype/icon_1_presentation_x32.png',
+                        state: connectors.google.slides,
+                        run: () => connectGoogle('slides'),
+                      },
+                      {
+                        key: 'outlook',
+                        label: 'Outlook Mail',
+                        icon:
+                          'https://static2.sharepointonline.com/files/fabric/assets/brand-icons/product-fluent/svg/outlook_48x1.svg',
+                        state: connectors.microsoft.outlook,
+                        run: () => connectMicrosoft('outlook'),
+                      },
+                      {
+                        key: 'calendar-m',
+                        label: 'Outlook Calendar',
+                        icon:
+                          'https://static2.sharepointonline.com/files/fabric/assets/brand-icons/product-fluent/svg/calendar_48x1.svg',
+                        state: connectors.microsoft.calendar,
+                        run: () => connectMicrosoft('calendar'),
+                      },
+                      {
+                        key: 'word',
+                        label: 'Word',
+                        icon:
+                          'https://static2.sharepointonline.com/files/fabric/assets/brand-icons/product-fluent/svg/word_48x1.svg',
+                        state: connectors.microsoft.word,
+                        run: () => connectMicrosoft('word'),
+                      },
+                      {
+                        key: 'excel',
+                        label: 'Excel',
+                        icon:
+                          'https://static2.sharepointonline.com/files/fabric/assets/brand-icons/product-fluent/svg/excel_48x1.svg',
+                        state: connectors.microsoft.excel,
+                        run: () => connectMicrosoft('excel'),
+                      },
+                      {
+                        key: 'powerpoint',
+                        label: 'PowerPoint',
+                        icon:
+                          'https://static2.sharepointonline.com/files/fabric/assets/brand-icons/product-fluent/svg/powerpoint_48x1.svg',
+                        state: connectors.microsoft.powerpoint,
+                        run: () => connectMicrosoft('powerpoint'),
+                      },
+                      {
+                        key: 'onedrive',
+                        label: 'OneDrive',
+                        icon:
+                          'https://static2.sharepointonline.com/files/fabric/assets/brand-icons/product-fluent/svg/onedrive_48x1.svg',
+                        state: connectors.microsoft.onedrive,
+                        run: () => connectMicrosoft('onedrive'),
+                      },
+                      {
+                        key: 'teams',
+                        label: 'Teams',
+                        icon:
+                          'https://static2.sharepointonline.com/files/fabric/assets/brand-icons/product-fluent/svg/teams_48x1.svg',
+                        state: connectors.microsoft.teams,
+                        run: () => connectMicrosoft('teams'),
+                      },
                     ].map((item) => (
                       <div
                         key={item.key}
                         className="flex items-center justify-between rounded-lg border border-black/10 px-2 py-1.5"
                       >
-                        <p className="text-sm text-black/80">{item.label}</p>
+                        <div className="flex items-center gap-2">
+                          <img
+                            src={item.icon}
+                            alt={`${item.label} icon`}
+                            className="h-4 w-4 rounded-sm"
+                          />
+                          <p className="text-sm text-black/80">{item.label}</p>
+                        </div>
                         {item.state ? (
                           <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs text-emerald-700">
                             Connected
@@ -570,4 +668,3 @@ const ChatPage = () => {
 };
 
 export default ChatPage;
-
