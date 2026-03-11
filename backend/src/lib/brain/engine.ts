@@ -58,6 +58,16 @@ export type PendingDraft = {
   contentType: 'Text' | 'HTML';
 };
 
+const stripInternalArtifacts = (text: string) => {
+  return text
+    .replace(/<use_mcp_tool>[\s\S]*?<\/use_mcp_tool>/gi, '')
+    .replace(/<server_name>[\s\S]*?<\/server_name>/gi, '')
+    .replace(/<tool_name>[\s\S]*?<\/tool_name>/gi, '')
+    .replace(/<arguments>[\s\S]*?<\/arguments>/gi, '')
+    .replace(/\bROUTER DECISION\b[\s\S]*$/i, '')
+    .trim();
+};
+
 const buildExecutionRules = (cards: string[]) => {
   const toolBlock = cards.length > 0 ? cards.join('\n') : 'Tool not available.';
   return [
@@ -761,6 +771,9 @@ export const executeBrainFlow = async (input: BrainExecutionInput) => {
     }
   }
 
+  const cleanedOutput =
+    typeof output === 'string' ? stripInternalArtifacts(output) : output;
+
   await Promise.all([
     recordAIUsage({
       userId: input.userId,
@@ -772,17 +785,18 @@ export const executeBrainFlow = async (input: BrainExecutionInput) => {
       type: activityType,
       sourceId: crypto.randomUUID(),
       title: input.query.slice(0, 120),
-      summary: typeof output === 'string' ? output : JSON.stringify(output),
+      summary:
+        typeof cleanedOutput === 'string'
+          ? cleanedOutput
+          : JSON.stringify(cleanedOutput),
       links: activityLinks,
       modelUsed,
     }),
   ]);
 
   return {
-    route,
-    loadedMcpServers,
     intent: effectiveIntent,
-    output,
+    output: cleanedOutput,
     modelUsed,
     downloads,
     pendingDraft,

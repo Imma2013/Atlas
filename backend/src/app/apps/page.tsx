@@ -18,6 +18,9 @@ import type { MicrosoftAppKey } from '@/lib/microsoftScopes';
 import type { GoogleAppKey } from '@/lib/googleScopes';
 import { ArrowRight, CheckCircle2, Link2, RefreshCw } from 'lucide-react';
 
+const GOOGLE_CONNECTORS_ENABLED =
+  process.env.NEXT_PUBLIC_ENABLE_GOOGLE_CONNECTORS === 'true';
+
 type MicrosoftProfile = {
   displayName?: string;
   mail?: string;
@@ -29,13 +32,13 @@ type GoogleProfile = {
   email?: string;
 };
 
-const appTiles = [
+const microsoftApps = [
   {
     key: 'powerpoint' as MicrosoftAppKey,
     name: 'PowerPoint',
     description: 'Open generated deck outlines and slide drafts.',
     href: 'https://www.office.com/launch/powerpoint',
-    logo: 'https://static2.sharepointonline.com/files/fabric/assets/brand-icons/product-fluent/svg/powerpoint_48x1.svg',
+    logo: '/apps/powerpoint.svg',
     accent: 'from-orange-50 to-rose-50',
   },
   {
@@ -43,7 +46,7 @@ const appTiles = [
     name: 'Word',
     description: 'Open generated documents and polished summaries.',
     href: 'https://www.office.com/launch/word',
-    logo: 'https://static2.sharepointonline.com/files/fabric/assets/brand-icons/product-fluent/svg/word_48x1.svg',
+    logo: '/apps/word.svg',
     accent: 'from-blue-50 to-indigo-50',
   },
   {
@@ -51,7 +54,7 @@ const appTiles = [
     name: 'Excel',
     description: 'Open generated sheets and analysis exports.',
     href: 'https://www.office.com/launch/excel',
-    logo: 'https://static2.sharepointonline.com/files/fabric/assets/brand-icons/product-fluent/svg/excel_48x1.svg',
+    logo: '/apps/excel.svg',
     accent: 'from-emerald-50 to-green-50',
   },
   {
@@ -59,7 +62,7 @@ const appTiles = [
     name: 'Outlook',
     description: 'Review inbox context and create reply drafts.',
     href: 'https://outlook.office.com/mail/',
-    logo: 'https://static2.sharepointonline.com/files/fabric/assets/brand-icons/product-fluent/svg/outlook_48x1.svg',
+    logo: '/apps/outlook.svg',
     accent: 'from-sky-50 to-cyan-50',
   },
   {
@@ -67,7 +70,7 @@ const appTiles = [
     name: 'Teams',
     description: 'Use meeting context and transcript-based summaries.',
     href: 'https://teams.microsoft.com',
-    logo: 'https://static2.sharepointonline.com/files/fabric/assets/brand-icons/product-fluent/svg/teams_48x1.svg',
+    logo: '/apps/teams.svg',
     accent: 'from-violet-50 to-indigo-50',
   },
   {
@@ -75,7 +78,7 @@ const appTiles = [
     name: 'OneDrive',
     description: 'Browse and open generated files.',
     href: 'https://onedrive.live.com/',
-    logo: 'https://static2.sharepointonline.com/files/fabric/assets/brand-icons/product-fluent/svg/onedrive_48x1.svg',
+    logo: '/apps/onedrive.svg',
     accent: 'from-cyan-50 to-sky-50',
   },
   {
@@ -83,12 +86,12 @@ const appTiles = [
     name: 'Calendar',
     description: 'Review events and use schedule context in workflows.',
     href: 'https://outlook.office.com/calendar/',
-    logo: 'https://static2.sharepointonline.com/files/fabric/assets/brand-icons/product-fluent/svg/calendar_48x1.svg',
+    logo: '/apps/outlook.svg',
     accent: 'from-indigo-50 to-blue-50',
   },
 ];
 
-const googleAppTiles = [
+const googleApps = [
   {
     key: 'slides' as GoogleAppKey,
     name: 'Google Slides',
@@ -158,14 +161,14 @@ const AppsPage = () => {
     setRefreshing(true);
     setError('');
     const token = await getMicrosoftAccessToken();
-    const googleToken = await getGoogleAccessToken();
+    const googleToken = GOOGLE_CONNECTORS_ENABLED ? await getGoogleAccessToken() : null;
+
     if (!token) {
       setConnected(false);
       setProfile(null);
       setGrantedScopes([]);
     }
-
-    if (!googleToken) {
+    if (GOOGLE_CONNECTORS_ENABLED && !googleToken) {
       setGoogleConnected(false);
       setGoogleProfile(null);
       setGoogleGrantedScopes([]);
@@ -179,7 +182,6 @@ const AppsPage = () => {
           headers: { 'x-microsoft-access-token': token },
         });
         if (!meRes.ok) throw new Error('Failed to validate Microsoft session');
-
         const mePayload = await meRes.json();
         setConnected(true);
         setProfile(mePayload.profile || null);
@@ -193,7 +195,7 @@ const AppsPage = () => {
       }
     }
 
-    if (googleToken) {
+    if (GOOGLE_CONNECTORS_ENABLED && googleToken) {
       try {
         const meRes = await fetch('/api/google/me', {
           headers: { 'x-google-access-token': googleToken },
@@ -230,23 +232,17 @@ const AppsPage = () => {
       if (typeof window !== 'undefined') {
         window.history.replaceState({}, '', '/apps');
       }
-      if (suffix) {
-        // keep this lightweight; no toast dependency needed here.
-        console.info(`Connected${suffix}`);
-      }
+      if (suffix) console.info(`Connected${suffix}`);
     }
-    if (searchParams.get('google_connected') === '1') {
+    if (GOOGLE_CONNECTORS_ENABLED && searchParams.get('google_connected') === '1') {
       const suffix = googleApp ? ` for ${googleApp}` : '';
       setError('');
       refreshData();
       if (typeof window !== 'undefined') {
         window.history.replaceState({}, '', '/apps');
       }
-      if (suffix) {
-        console.info(`Google connected${suffix}`);
-      }
+      if (suffix) console.info(`Google connected${suffix}`);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams]);
 
   const connectMicrosoft = async (app?: MicrosoftAppKey) => {
@@ -311,7 +307,7 @@ const AppsPage = () => {
 
   const appConnectionMap = useMemo(() => {
     const mapped = new Map<MicrosoftAppKey, boolean>();
-    appTiles.forEach((app) => {
+    microsoftApps.forEach((app) => {
       mapped.set(app.key, connected && hasMicrosoftAppScopes(app.key));
     });
     return mapped;
@@ -319,14 +315,14 @@ const AppsPage = () => {
 
   const googleAppConnectionMap = useMemo(() => {
     const mapped = new Map<GoogleAppKey, boolean>();
-    googleAppTiles.forEach((app) => {
+    googleApps.forEach((app) => {
       mapped.set(app.key, googleConnected && hasGoogleAppScopes(app.key));
     });
     return mapped;
   }, [googleConnected, googleGrantedScopes]);
 
   return (
-    <div className="pt-10 pb-20 px-2 md:px-4">
+    <div className="px-2 pb-20 pt-10 md:px-4">
       <h1 className="text-3xl font-semibold tracking-tight text-black">Apps</h1>
       <p className="mt-1 text-sm text-black/60">
         Microsoft workspace hub across Outlook, OneDrive, Word, Excel, PowerPoint, Teams, and Calendar.
@@ -342,12 +338,12 @@ const AppsPage = () => {
                 : 'Not connected'}
             </p>
           </div>
-          <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex flex-wrap items-center gap-2">
             {connected ? (
               <>
                 <button
                   onClick={() => connectMicrosoft()}
-                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-light-200 text-sm"
+                  className="inline-flex items-center gap-1 rounded-lg border border-light-200 px-3 py-1.5 text-sm"
                 >
                   <Link2 size={14} />
                   Reconnect OAuth
@@ -355,14 +351,14 @@ const AppsPage = () => {
                 <button
                   onClick={refreshData}
                   disabled={refreshing}
-                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-light-200 text-sm disabled:opacity-60"
+                  className="inline-flex items-center gap-1 rounded-lg border border-light-200 px-3 py-1.5 text-sm disabled:opacity-60"
                 >
                   <RefreshCw size={14} className={refreshing ? 'animate-spin' : ''} />
                   Refresh
                 </button>
                 <button
                   onClick={disconnectMicrosoft}
-                  className="px-3 py-1.5 rounded-lg bg-red-500 text-white text-sm"
+                  className="rounded-lg bg-red-500 px-3 py-1.5 text-sm text-white"
                 >
                   Disconnect
                 </button>
@@ -371,7 +367,7 @@ const AppsPage = () => {
               <button
                 onClick={() => connectMicrosoft()}
                 disabled={connecting}
-                className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-sky-600 text-white text-sm disabled:opacity-60"
+                className="inline-flex items-center gap-1 rounded-lg bg-sky-600 px-3 py-1.5 text-sm text-white disabled:opacity-60"
               >
                 <ArrowRight size={14} />
                 {connecting ? 'Opening OAuth...' : 'Connect Microsoft'}
@@ -393,113 +389,7 @@ const AppsPage = () => {
           Microsoft App Suite
         </p>
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-        {appTiles.map((app) => (
-          <div
-            key={app.name}
-            className={`block rounded-2xl border border-light-200 bg-gradient-to-br ${app.accent} p-4 transition-all hover:-translate-y-0.5 hover:shadow-md`}
-          >
-            <div className="flex items-center gap-3">
-              <img
-                src={app.logo}
-                alt={`${app.name} logo`}
-                width={40}
-                height={40}
-                className="h-10 w-10 rounded-lg bg-white p-1 shadow-sm"
-              />
-              <div>
-                <p className="font-medium text-black">{app.name}</p>
-                <p className="mt-1 text-sm text-black/70">{app.description}</p>
-                <p className="mt-2 text-xs font-medium text-black/60">
-                  {appConnectionMap.get(app.key)
-                    ? 'Connected for AI workflows'
-                    : 'Not connected for AI workflows'}
-                </p>
-                <div className="mt-2 flex items-center gap-2">
-                  <button
-                    onClick={() => connectMicrosoft(app.key)}
-                    disabled={connecting}
-                    className="inline-flex items-center gap-1 rounded-lg border border-light-200 bg-white px-2 py-1 text-xs font-medium text-black disabled:opacity-60"
-                  >
-                    <Link2 size={12} />
-                    {connecting && connectingApp === app.key ? 'Connecting...' : `Connect ${app.name}`}
-                  </button>
-                  <a
-                    href={app.href}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="inline-flex items-center gap-1 rounded-lg border border-light-200 bg-white px-2 py-1 text-xs font-medium text-black"
-                  >
-                    Open app
-                  </a>
-                </div>
-              </div>
-            </div>
-          </div>
-        ))}
-        </div>
-      </div>
-
-      <div className="mt-5 rounded-3xl border border-light-200 bg-white p-5 shadow-[0_20px_70px_-40px_rgba(0,0,0,0.35)]">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <p className="font-medium text-black">Google Workspace OAuth</p>
-            <p className="text-sm text-black/65">
-              {googleConnected
-                ? `Connected as ${googleProfile?.email || googleProfile?.name || 'Google account'}`
-                : 'Not connected'}
-            </p>
-          </div>
-          <div className="flex items-center gap-2 flex-wrap">
-            {googleConnected ? (
-              <>
-                <button
-                  onClick={() => connectGoogle()}
-                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-light-200 text-sm"
-                >
-                  <Link2 size={14} />
-                  Reconnect OAuth
-                </button>
-                <button
-                  onClick={refreshData}
-                  disabled={refreshing}
-                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-light-200 text-sm disabled:opacity-60"
-                >
-                  <RefreshCw size={14} className={refreshing ? 'animate-spin' : ''} />
-                  Refresh
-                </button>
-                <button
-                  onClick={disconnectGoogle}
-                  className="px-3 py-1.5 rounded-lg bg-red-500 text-white text-sm"
-                >
-                  Disconnect
-                </button>
-              </>
-            ) : (
-              <button
-                onClick={() => connectGoogle()}
-                disabled={googleConnecting}
-                className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-sm disabled:opacity-60"
-              >
-                <ArrowRight size={14} />
-                {googleConnecting ? 'Opening OAuth...' : 'Connect Google'}
-              </button>
-            )}
-          </div>
-        </div>
-        {googleConnected ? (
-          <div className="mt-3 inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-1 text-xs text-emerald-700">
-            <CheckCircle2 size={14} />
-            OAuth active
-          </div>
-        ) : null}
-      </div>
-
-      <div className="mt-6 rounded-3xl border border-light-200 bg-white p-4 shadow-[0_16px_55px_-35px_rgba(0,0,0,0.35)]">
-        <p className="px-2 pb-3 text-xs font-semibold uppercase tracking-[0.14em] text-black/45">
-          Google App Suite
-        </p>
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-          {googleAppTiles.map((app) => (
+          {microsoftApps.map((app) => (
             <div
               key={app.name}
               className={`block rounded-2xl border border-light-200 bg-gradient-to-br ${app.accent} p-4 transition-all hover:-translate-y-0.5 hover:shadow-md`}
@@ -516,20 +406,18 @@ const AppsPage = () => {
                   <p className="font-medium text-black">{app.name}</p>
                   <p className="mt-1 text-sm text-black/70">{app.description}</p>
                   <p className="mt-2 text-xs font-medium text-black/60">
-                    {googleAppConnectionMap.get(app.key)
+                    {appConnectionMap.get(app.key)
                       ? 'Connected for AI workflows'
                       : 'Not connected for AI workflows'}
                   </p>
                   <div className="mt-2 flex items-center gap-2">
                     <button
-                      onClick={() => connectGoogle(app.key)}
-                      disabled={googleConnecting}
+                      onClick={() => connectMicrosoft(app.key)}
+                      disabled={connecting}
                       className="inline-flex items-center gap-1 rounded-lg border border-light-200 bg-white px-2 py-1 text-xs font-medium text-black disabled:opacity-60"
                     >
                       <Link2 size={12} />
-                      {googleConnecting && connectingGoogleApp === app.key
-                        ? 'Connecting...'
-                        : `Connect ${app.name}`}
+                      {connecting && connectingApp === app.key ? 'Connecting...' : `Connect ${app.name}`}
                     </button>
                     <a
                       href={app.href}
@@ -546,8 +434,127 @@ const AppsPage = () => {
           ))}
         </div>
       </div>
+
+      {GOOGLE_CONNECTORS_ENABLED ? (
+        <>
+          <div className="mt-5 rounded-3xl border border-light-200 bg-white p-5 shadow-[0_20px_70px_-40px_rgba(0,0,0,0.35)]">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="font-medium text-black">Google Workspace OAuth</p>
+                <p className="text-sm text-black/65">
+                  {googleConnected
+                    ? `Connected as ${googleProfile?.email || googleProfile?.name || 'Google account'}`
+                    : 'Not connected'}
+                </p>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                {googleConnected ? (
+                  <>
+                    <button
+                      onClick={() => connectGoogle()}
+                      className="inline-flex items-center gap-1 rounded-lg border border-light-200 px-3 py-1.5 text-sm"
+                    >
+                      <Link2 size={14} />
+                      Reconnect OAuth
+                    </button>
+                    <button
+                      onClick={refreshData}
+                      disabled={refreshing}
+                      className="inline-flex items-center gap-1 rounded-lg border border-light-200 px-3 py-1.5 text-sm disabled:opacity-60"
+                    >
+                      <RefreshCw size={14} className={refreshing ? 'animate-spin' : ''} />
+                      Refresh
+                    </button>
+                    <button
+                      onClick={disconnectGoogle}
+                      className="rounded-lg bg-red-500 px-3 py-1.5 text-sm text-white"
+                    >
+                      Disconnect
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    onClick={() => connectGoogle()}
+                    disabled={googleConnecting}
+                    className="inline-flex items-center gap-1 rounded-lg bg-emerald-600 px-3 py-1.5 text-sm text-white disabled:opacity-60"
+                  >
+                    <ArrowRight size={14} />
+                    {googleConnecting ? 'Opening OAuth...' : 'Connect Google'}
+                  </button>
+                )}
+              </div>
+            </div>
+            {googleConnected ? (
+              <div className="mt-3 inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-1 text-xs text-emerald-700">
+                <CheckCircle2 size={14} />
+                OAuth active
+              </div>
+            ) : null}
+          </div>
+
+          <div className="mt-6 rounded-3xl border border-light-200 bg-white p-4 shadow-[0_16px_55px_-35px_rgba(0,0,0,0.35)]">
+            <p className="px-2 pb-3 text-xs font-semibold uppercase tracking-[0.14em] text-black/45">
+              Google App Suite
+            </p>
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+              {googleApps.map((app) => (
+                <div
+                  key={app.name}
+                  className={`block rounded-2xl border border-light-200 bg-gradient-to-br ${app.accent} p-4 transition-all hover:-translate-y-0.5 hover:shadow-md`}
+                >
+                  <div className="flex items-center gap-3">
+                    <img
+                      src={app.logo}
+                      alt={`${app.name} logo`}
+                      width={40}
+                      height={40}
+                      className="h-10 w-10 rounded-lg bg-white p-1 shadow-sm"
+                    />
+                    <div>
+                      <p className="font-medium text-black">{app.name}</p>
+                      <p className="mt-1 text-sm text-black/70">{app.description}</p>
+                      <p className="mt-2 text-xs font-medium text-black/60">
+                        {googleAppConnectionMap.get(app.key)
+                          ? 'Connected for AI workflows'
+                          : 'Not connected for AI workflows'}
+                      </p>
+                      <div className="mt-2 flex items-center gap-2">
+                        <button
+                          onClick={() => connectGoogle(app.key)}
+                          disabled={googleConnecting}
+                          className="inline-flex items-center gap-1 rounded-lg border border-light-200 bg-white px-2 py-1 text-xs font-medium text-black disabled:opacity-60"
+                        >
+                          <Link2 size={12} />
+                          {googleConnecting && connectingGoogleApp === app.key
+                            ? 'Connecting...'
+                            : `Connect ${app.name}`}
+                        </button>
+                        <a
+                          href={app.href}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center gap-1 rounded-lg border border-light-200 bg-white px-2 py-1 text-xs font-medium text-black"
+                        >
+                          Open app
+                        </a>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </>
+      ) : (
+        <div className="mt-5 rounded-3xl border border-light-200 bg-white p-5 shadow-[0_20px_70px_-40px_rgba(0,0,0,0.35)]">
+          <p className="text-sm text-black/70">
+            Google connectors are hidden until OAuth verification is complete.
+          </p>
+        </div>
+      )}
     </div>
   );
 };
 
 export default AppsPage;
+
