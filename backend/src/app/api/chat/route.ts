@@ -138,6 +138,10 @@ export const POST = async (req: Request) => {
     }
 
     if (body.brainMode) {
+      const requestedSources = Array.isArray(body.sources) ? body.sources : [];
+      const webEnabled = requestedSources.includes('web');
+      const normalizedSources = webEnabled ? ['workspace', 'web'] : ['workspace'];
+
       const microsoftAccessToken =
         req.headers.get('x-microsoft-access-token') ||
         req.headers.get('authorization')?.replace(/^Bearer\s+/i, '');
@@ -150,7 +154,7 @@ export const POST = async (req: Request) => {
           userId,
           microsoftAccessToken: microsoftAccessToken || undefined,
           googleAccessToken: googleAccessToken || undefined,
-          sources: body.sources,
+          sources: normalizedSources,
           history: body.history,
           models: {
             routerModel:
