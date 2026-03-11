@@ -17,9 +17,9 @@ const montserrat = Montserrat({
 });
 
 export const metadata: Metadata = {
-  title: 'Perplexica - Chat with the internet',
+  title: 'Astro Agent',
   description:
-    'Perplexica is an AI powered chatbot that is connected to the internet.',
+    'Astro Agent: a unified workspace assistant across Microsoft and Google.',
 };
 
 export default function RootLayout({

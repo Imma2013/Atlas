@@ -139,6 +139,12 @@ const extractSingleWordRequest = (query: string) => {
   return match?.[1] || null;
 };
 
+const extractRequestedTitle = (query: string, fallback: string) => {
+  const named = query.match(/\b(?:named|titled|title)\s+["']?([a-z0-9 _-]{2,80})["']?/i);
+  if (named?.[1]) return named[1].trim();
+  return fallback;
+};
+
 const generateStandaloneDocument = async (input: {
   model: string;
   query: string;
@@ -606,7 +612,11 @@ export const executeBrainFlow = async (input: BrainExecutionInput) => {
 
     if (wantsExcelOutput) {
       const excelFileName = `Atlas-Spreadsheet-${stampedDate}.xlsx`;
-      const workbookBuffer = createWorkbookFromText({ text: renderedOutput });
+      const workbookTitle = extractRequestedTitle(input.query, 'Astro Sheet');
+      const workbookBuffer = createWorkbookFromText({
+        text: renderedOutput,
+        title: workbookTitle,
+      });
       let cloudCreated = false;
 
       if (hasMicrosoftToken) {

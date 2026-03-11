@@ -1,20 +1,27 @@
 'use client';
 
-import { useMemo, useState } from 'react';
-import { CHAT_MODEL_OPTIONS, DEFAULT_CHAT_MODEL } from '@/lib/modelCatalog';
-import { getMicrosoftAccessToken } from '@/lib/microsoftAuthClient';
-import { getGoogleAccessToken } from '@/lib/googleAuthClient';
-import { Check, Globe, SendHorizonal, Sparkles, X } from 'lucide-react';
-
-type MCPServer =
-  | 'Word'
-  | 'Excel'
-  | 'PowerPoint'
-  | 'Outlook'
-  | 'OneDrive'
-  | 'Teams'
-  | 'Calendar'
-  | 'SharePoint';
+import { useEffect, useState } from 'react';
+import {
+  clearGoogleTokens,
+  getGoogleAccessToken,
+  hasGoogleAppScopes,
+} from '@/lib/googleAuthClient';
+import {
+  clearMicrosoftTokens,
+  getMicrosoftAccessToken,
+  hasMicrosoftAppScopes,
+} from '@/lib/microsoftAuthClient';
+import type { GoogleAppKey } from '@/lib/googleScopes';
+import type { MicrosoftAppKey } from '@/lib/microsoftScopes';
+import {
+  Check,
+  ChevronDown,
+  Globe,
+  Link2,
+  Plus,
+  SendHorizonal,
+  X,
+} from 'lucide-react';
 
 type PendingDraft = {
   provider: 'outlook' | 'gmail';
@@ -24,27 +31,13 @@ type PendingDraft = {
   contentType: 'Text' | 'HTML';
 };
 
-type LoadedMcpServer = {
-  serverId: string;
-  displayName: string;
-  source: 'official' | 'custom';
-  mode: 'read_only' | 'read_draft';
-  tools: string[];
-  blockedTools: string[];
-};
-
 type ChatMessage = {
   role: 'user' | 'assistant';
   text: string;
-  route?: {
-    required_mcp_servers: MCPServer[];
-    reasoning: string;
-  };
   pendingDraft?: PendingDraft;
   draftState?: 'idle' | 'creating' | 'created' | 'failed' | 'cancelled';
   draftError?: string;
   draftWebLink?: string;
-  loadedMcpServers?: LoadedMcpServer[];
   downloads?: Array<{
     kind: 'word' | 'excel' | 'powerpoint';
     fileName: string;
@@ -53,6 +46,31 @@ type ChatMessage = {
     webUrl?: string;
     origin: 'microsoft' | 'google' | 'local';
   }>;
+};
+
+type ConnectorState = {
+  microsoft: Record<MicrosoftAppKey, boolean>;
+  google: Record<GoogleAppKey, boolean>;
+};
+
+const defaultConnectorState: ConnectorState = {
+  microsoft: {
+    outlook: false,
+    calendar: false,
+    onedrive: false,
+    word: false,
+    excel: false,
+    powerpoint: false,
+    teams: false,
+  },
+  google: {
+    gmail: false,
+    drive: false,
+    docs: false,
+    sheets: false,
+    slides: false,
+    calendar: false,
+  },
 };
 
 const getOrCreateUserId = () => {
@@ -85,56 +103,93 @@ const asHistory = (messages: ChatMessage[]) =>
 const decodeBase64ToBytes = (base64: string) => {
   const binary = atob(base64);
   const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i += 1) {
-    bytes[i] = binary.charCodeAt(i);
-  }
+  for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
   return bytes;
 };
 
-const starterCards = [
-  {
-    title: 'Spreadsheets',
-    description: 'Track metrics, budget, and forecast summaries.',
-    icon: 'https://static2.sharepointonline.com/files/fabric/assets/brand-icons/product-fluent/svg/excel_48x1.svg',
-    prompt: 'Make an Excel sheet summary from my latest workspace context.',
-  },
-  {
-    title: 'Documents',
-    description: 'Create polished Word-ready drafts and briefs.',
-    icon: 'https://static2.sharepointonline.com/files/fabric/assets/brand-icons/product-fluent/svg/word_48x1.svg',
-    prompt: 'Make a Word document draft from this request.',
-  },
-  {
-    title: 'Presentations',
-    description: 'Build slide outlines for quick deck creation.',
-    icon: 'https://static2.sharepointonline.com/files/fabric/assets/brand-icons/product-fluent/svg/powerpoint_48x1.svg',
-    prompt: 'Create a PowerPoint outline for this topic.',
-  },
-];
-
 const ChatPage = () => {
-  const [model, setModel] = useState(DEFAULT_CHAT_MODEL);
   const [includeWeb, setIncludeWeb] = useState(false);
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [connectorOpen, setConnectorOpen] = useState(false);
+  const [connectingKey, setConnectingKey] = useState<string>('');
+  const [connectors, setConnectors] = useState<ConnectorState>(defaultConnectorState);
 
-  const groupedModels = useMemo(() => {
-    const groups = {
-      Anthropic: CHAT_MODEL_OPTIONS.filter((m) => m.provider === 'anthropic'),
-      Gemini: CHAT_MODEL_OPTIONS.filter((m) => m.provider === 'gemini'),
-    };
-    return groups;
+  const refreshConnections = async () => {
+    const microsoftToken = await getMicrosoftAccessToken();
+    const googleToken = await getGoogleAccessToken();
+
+    if (!microsoftToken) {
+      clearMicrosoftTokens();
+    }
+    if (!googleToken) {
+      clearGoogleTokens();
+    }
+
+    setConnectors({
+      microsoft: {
+        outlook: Boolean(microsoftToken) && hasMicrosoftAppScopes('outlook'),
+        calendar: Boolean(microsoftToken) && hasMicrosoftAppScopes('calendar'),
+        onedrive: Boolean(microsoftToken) && hasMicrosoftAppScopes('onedrive'),
+        word: Boolean(microsoftToken) && hasMicrosoftAppScopes('word'),
+        excel: Boolean(microsoftToken) && hasMicrosoftAppScopes('excel'),
+        powerpoint: Boolean(microsoftToken) && hasMicrosoftAppScopes('powerpoint'),
+        teams: Boolean(microsoftToken) && hasMicrosoftAppScopes('teams'),
+      },
+      google: {
+        gmail: Boolean(googleToken) && hasGoogleAppScopes('gmail'),
+        drive: Boolean(googleToken) && hasGoogleAppScopes('drive'),
+        docs: Boolean(googleToken) && hasGoogleAppScopes('docs'),
+        sheets: Boolean(googleToken) && hasGoogleAppScopes('sheets'),
+        slides: Boolean(googleToken) && hasGoogleAppScopes('slides'),
+        calendar: Boolean(googleToken) && hasGoogleAppScopes('calendar'),
+      },
+    });
+  };
+
+  useEffect(() => {
+    refreshConnections();
   }, []);
 
-  const placeholder = useMemo(
-    () =>
-      includeWeb
-        ? 'Ask with workspace + web context (example: summarize this Teams meeting and compare with latest market updates).'
-        : 'Ask using connected Microsoft + Google workspace (example: summarize Gmail invoice and export to Excel).',
-    [includeWeb],
-  );
+  const connectMicrosoft = async (app: MicrosoftAppKey) => {
+    setConnectingKey(`ms:${app}`);
+    setError('');
+    try {
+      const nonce = crypto.randomUUID();
+      const response = await fetch(
+        `/api/microsoft/auth?state=${encodeURIComponent(nonce)}&app=${encodeURIComponent(app)}`,
+      );
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || !payload?.authUrl) {
+        throw new Error(payload?.message || payload?.error || 'Failed to start Microsoft OAuth');
+      }
+      window.location.href = payload.authUrl;
+    } catch (e: any) {
+      setError(e?.message || 'Microsoft connect failed');
+      setConnectingKey('');
+    }
+  };
+
+  const connectGoogle = async (app: GoogleAppKey) => {
+    setConnectingKey(`g:${app}`);
+    setError('');
+    try {
+      const nonce = crypto.randomUUID();
+      const response = await fetch(
+        `/api/google/auth?state=${encodeURIComponent(nonce)}&app=${encodeURIComponent(app)}`,
+      );
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || !payload?.authUrl) {
+        throw new Error(payload?.message || payload?.error || 'Failed to start Google OAuth');
+      }
+      window.location.href = payload.authUrl;
+    } catch (e: any) {
+      setError(e?.message || 'Google connect failed');
+      setConnectingKey('');
+    }
+  };
 
   const submit = async () => {
     const query = input.trim();
@@ -156,12 +211,8 @@ const ChatPage = () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          ...(microsoftAccessToken
-            ? { 'x-microsoft-access-token': microsoftAccessToken }
-            : {}),
-          ...(googleAccessToken
-            ? { 'x-google-access-token': googleAccessToken }
-            : {}),
+          ...(microsoftAccessToken ? { 'x-microsoft-access-token': microsoftAccessToken } : {}),
+          ...(googleAccessToken ? { 'x-google-access-token': googleAccessToken } : {}),
         },
         body: JSON.stringify({
           message: {
@@ -173,9 +224,6 @@ const ChatPage = () => {
           brainMode: true,
           userId,
           sources: includeWeb ? ['workspace', 'web'] : ['workspace'],
-          openRouterModels: {
-            midModel: model,
-          },
         }),
       });
 
@@ -189,15 +237,6 @@ const ChatPage = () => {
           ? data.output
           : data?.output?.answer || JSON.stringify(data?.output ?? data, null, 2);
       const downloads = Array.isArray(data?.downloads) ? data.downloads : [];
-      const route =
-        data?.route &&
-        Array.isArray(data.route.required_mcp_servers) &&
-        typeof data.route.reasoning === 'string'
-          ? {
-              required_mcp_servers: data.route.required_mcp_servers as MCPServer[],
-              reasoning: data.route.reasoning as string,
-            }
-          : undefined;
       const pendingDraft =
         data?.pendingDraft &&
         (data.pendingDraft.provider === 'gmail' || data.pendingDraft.provider === 'outlook') &&
@@ -206,9 +245,6 @@ const ChatPage = () => {
         typeof data.pendingDraft.body === 'string'
           ? (data.pendingDraft as PendingDraft)
           : undefined;
-      const loadedMcpServers = Array.isArray(data?.loadedMcpServers)
-        ? (data.loadedMcpServers as LoadedMcpServer[])
-        : [];
 
       setMessages((prev) => [
         ...prev,
@@ -216,9 +252,7 @@ const ChatPage = () => {
           role: 'assistant',
           text: output,
           downloads,
-          route,
           pendingDraft,
-          loadedMcpServers,
           draftState: pendingDraft ? 'idle' : undefined,
         },
       ]);
@@ -237,9 +271,7 @@ const ChatPage = () => {
 
     setMessages((prev) =>
       prev.map((item, itemIndex) =>
-        itemIndex === index
-          ? { ...item, draftState: 'creating', draftError: '' }
-          : item,
+        itemIndex === index ? { ...item, draftState: 'creating', draftError: '' } : item,
       ),
     );
 
@@ -247,12 +279,12 @@ const ChatPage = () => {
       const isGmail = target.pendingDraft.provider === 'gmail';
       const token = isGmail
         ? await getGoogleAccessToken('gmail')
-        : await getMicrosoftAccessToken();
+        : await getMicrosoftAccessToken('outlook');
       if (!token) {
         throw new Error(
           isGmail
-            ? 'Google Gmail is not connected. Connect in Apps first.'
-            : 'Microsoft is not connected. Connect in Apps first.',
+            ? 'Gmail is not connected. Use + to connect Gmail.'
+            : 'Outlook is not connected. Use + to connect Outlook.',
         );
       }
 
@@ -266,6 +298,7 @@ const ChatPage = () => {
         },
         body: JSON.stringify(target.pendingDraft),
       });
+
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) {
         throw new Error(payload?.message || payload?.error || 'Failed to create draft');
@@ -287,128 +320,125 @@ const ChatPage = () => {
       setMessages((prev) =>
         prev.map((item, itemIndex) =>
           itemIndex === index
-            ? {
-                ...item,
-                draftState: 'failed',
-                draftError: e?.message || 'Draft creation failed',
-              }
+            ? { ...item, draftState: 'failed', draftError: e?.message || 'Draft creation failed' }
             : item,
         ),
       );
     }
   };
 
-  const cancelDraft = (index: number) => {
-    setMessages((prev) =>
-      prev.map((item, itemIndex) =>
-        itemIndex === index
-          ? { ...item, draftState: 'cancelled', draftError: '' }
-          : item,
-      ),
-    );
-  };
-
   return (
     <div className="mx-auto max-w-5xl px-4 py-8 md:px-6">
-      <div className="rounded-3xl border border-light-200 bg-white/95 p-6 shadow-[0_18px_60px_-30px_rgba(0,0,0,0.35)]">
-        <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="rounded-3xl border border-light-200 bg-white p-5 shadow-[0_20px_70px_-40px_rgba(0,0,0,0.35)]">
+        <div className="mb-4 flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-semibold tracking-tight text-black">
-              {messages.length === 0 ? 'How can I help you?' : 'Atlas Chat'}
+              {messages.length === 0 ? 'What can Astro Agent do for you?' : 'Astro Agent'}
             </h1>
             <p className="mt-1 text-sm text-black/60">
-              Workspace-first assistant with direct Word, Excel, PowerPoint, and draft workflows.
+              One agent flow: JIT router, capped tools, grounded execution.
             </p>
           </div>
-          <div className="inline-flex items-center gap-1 rounded-full bg-sky-50 px-3 py-1 text-xs font-medium text-sky-700">
-            <Sparkles size={14} />
-            Brain mode active
+          <div className="rounded-full bg-black/5 px-3 py-1 text-xs font-medium text-black/70">
+            Brain Mode
           </div>
         </div>
 
-        {messages.length === 0 ? (
-          <div className="mt-5 grid gap-3 md:grid-cols-3">
-            {starterCards.map((card) => (
+        <div className="relative rounded-2xl border border-black/10 bg-white p-3 shadow-[0_8px_30px_-20px_rgba(0,0,0,0.4)]">
+          <input
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                submit();
+              }
+            }}
+            placeholder="Assign a task or ask anything"
+            className="w-full rounded-xl border-none bg-transparent px-2 py-2 text-sm outline-none"
+          />
+          <div className="mt-2 flex items-center justify-between gap-2">
+            <div className="relative flex items-center gap-2">
               <button
-                key={card.title}
                 type="button"
-                onClick={() => setInput(card.prompt)}
-                className="rounded-2xl border border-light-200 bg-white p-4 text-left transition hover:shadow-md"
+                onClick={() => setConnectorOpen((prev) => !prev)}
+                className="inline-flex items-center gap-1 rounded-full border border-black/10 bg-white px-2.5 py-1.5 text-xs font-medium text-black/75"
               >
-                <div className="flex items-center gap-2">
-                  <img src={card.icon} alt={`${card.title} icon`} className="h-6 w-6" />
-                  <p className="text-base font-semibold text-black">{card.title}</p>
-                </div>
-                <p className="mt-2 text-sm text-black/65">{card.description}</p>
+                <Plus size={13} />
+                Connect
+                <ChevronDown size={12} />
               </button>
-            ))}
-          </div>
-        ) : null}
-
-        <div className="mt-5 rounded-2xl border border-black/10 bg-gradient-to-br from-white to-slate-50 p-3">
-          <label className="block">
-            <span className="mb-1 block px-1 text-xs font-semibold uppercase tracking-[0.12em] text-black/45">Chat model</span>
-            <select
-              value={model}
-              onChange={(e) => setModel(e.target.value)}
-              className="w-full rounded-xl border border-light-200 bg-white px-3 py-2 text-sm shadow-sm"
-            >
-              <optgroup label="Anthropic">
-                {groupedModels.Anthropic.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </optgroup>
-              <optgroup label="Gemini">
-                {groupedModels.Gemini.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </optgroup>
-            </select>
-          </label>
-
-          <div className="mt-3 rounded-2xl border border-black/10 bg-white p-2 shadow-[0_8px_30px_-20px_rgba(0,0,0,0.4)]">
-            <input
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                  e.preventDefault();
-                  submit();
-                }
-              }}
-              placeholder={placeholder}
-              className="w-full rounded-xl border-none bg-transparent px-2 py-2 text-sm outline-none"
-            />
-            <div className="mt-2 flex items-center justify-between gap-2">
               <button
                 type="button"
                 onClick={() => setIncludeWeb((prev) => !prev)}
-                className={`inline-flex items-center gap-1 rounded-full border px-3 py-1.5 text-xs font-medium transition ${
+                className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1.5 text-xs font-medium ${
                   includeWeb
                     ? 'border-sky-300 bg-sky-50 text-sky-700'
-                    : 'border-black/10 bg-white text-black/70 hover:bg-black/5'
+                    : 'border-black/10 bg-white text-black/70'
                 }`}
               >
                 <Globe size={13} />
                 Web {includeWeb ? 'On' : 'Off'}
               </button>
 
-              <button
-                onClick={submit}
-                disabled={loading}
-                className="inline-flex items-center gap-1 rounded-xl bg-black px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
-              >
-                <SendHorizonal size={14} />
-                {loading ? 'Running...' : 'Send'}
-              </button>
+              {connectorOpen ? (
+                <div className="absolute left-0 top-10 z-30 w-[360px] rounded-2xl border border-black/10 bg-white p-3 shadow-xl">
+                  <p className="mb-2 text-xs font-semibold uppercase tracking-[0.1em] text-black/45">
+                    Connectors
+                  </p>
+                  <div className="max-h-72 space-y-2 overflow-auto pr-1">
+                    {[
+                      { key: 'gmail', label: 'Gmail', state: connectors.google.gmail, run: () => connectGoogle('gmail') },
+                      { key: 'calendar-g', label: 'Google Calendar', state: connectors.google.calendar, run: () => connectGoogle('calendar') },
+                      { key: 'drive', label: 'Google Drive', state: connectors.google.drive, run: () => connectGoogle('drive') },
+                      { key: 'docs', label: 'Google Docs', state: connectors.google.docs, run: () => connectGoogle('docs') },
+                      { key: 'sheets', label: 'Google Sheets', state: connectors.google.sheets, run: () => connectGoogle('sheets') },
+                      { key: 'slides', label: 'Google Slides', state: connectors.google.slides, run: () => connectGoogle('slides') },
+                      { key: 'outlook', label: 'Outlook Mail', state: connectors.microsoft.outlook, run: () => connectMicrosoft('outlook') },
+                      { key: 'calendar-m', label: 'Outlook Calendar', state: connectors.microsoft.calendar, run: () => connectMicrosoft('calendar') },
+                      { key: 'word', label: 'Word', state: connectors.microsoft.word, run: () => connectMicrosoft('word') },
+                      { key: 'excel', label: 'Excel', state: connectors.microsoft.excel, run: () => connectMicrosoft('excel') },
+                      { key: 'powerpoint', label: 'PowerPoint', state: connectors.microsoft.powerpoint, run: () => connectMicrosoft('powerpoint') },
+                      { key: 'onedrive', label: 'OneDrive', state: connectors.microsoft.onedrive, run: () => connectMicrosoft('onedrive') },
+                      { key: 'teams', label: 'Teams', state: connectors.microsoft.teams, run: () => connectMicrosoft('teams') },
+                    ].map((item) => (
+                      <div
+                        key={item.key}
+                        className="flex items-center justify-between rounded-lg border border-black/10 px-2 py-1.5"
+                      >
+                        <p className="text-sm text-black/80">{item.label}</p>
+                        {item.state ? (
+                          <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs text-emerald-700">
+                            Connected
+                          </span>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={item.run}
+                            disabled={connectingKey.length > 0}
+                            className="inline-flex items-center gap-1 rounded-md border border-black/10 px-2 py-1 text-xs text-black disabled:opacity-60"
+                          >
+                            <Link2 size={12} />
+                            {connectingKey ? 'Connecting...' : 'Connect'}
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
             </div>
+
+            <button
+              onClick={submit}
+              disabled={loading}
+              className="inline-flex items-center gap-1 rounded-xl bg-black px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
+            >
+              <SendHorizonal size={14} />
+              {loading ? 'Running...' : 'Send'}
+            </button>
           </div>
         </div>
-
         {error ? <p className="mt-2 text-sm text-red-600">{error}</p> : null}
       </div>
 
@@ -424,50 +454,14 @@ const ChatPage = () => {
           >
             <p className="mb-1 text-xs uppercase tracking-wide text-black/50">{message.role}</p>
             <pre className="whitespace-pre-wrap break-words text-sm text-black">{message.text}</pre>
-            {message.role === 'assistant' && message.route ? (
-              <div className="mt-3 rounded-xl border border-black/10 bg-slate-50 p-3">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-black/45">
-                  Router decision
-                </p>
-                <div className="mt-2 flex flex-wrap gap-2">
-                  {(message.route.required_mcp_servers || []).map((server) => (
-                    <span
-                      key={server}
-                      className="rounded-full border border-black/10 bg-white px-2.5 py-1 text-xs text-black/80"
-                    >
-                      {server}
-                    </span>
-                  ))}
-                </div>
-                <p className="mt-2 text-xs text-black/60">{message.route.reasoning}</p>
-                {message.loadedMcpServers && message.loadedMcpServers.length > 0 ? (
-                  <div className="mt-3 space-y-2">
-                    {message.loadedMcpServers.map((server) => (
-                      <div key={server.serverId} className="rounded-lg border border-black/10 bg-white p-2">
-                        <p className="text-xs font-semibold text-black">
-                          {server.displayName} ({server.serverId}) - {server.mode} - {server.source}
-                        </p>
-                        <p className="mt-1 text-[11px] text-black/70">
-                          Allowed tools: {server.tools.join(', ') || 'None'}
-                        </p>
-                        {server.blockedTools.length > 0 ? (
-                          <p className="mt-1 text-[11px] text-amber-700">
-                            Blocked tools: {server.blockedTools.join(', ')}
-                          </p>
-                        ) : null}
-                      </div>
-                    ))}
-                  </div>
-                ) : null}
-              </div>
-            ) : null}
+
             {message.role === 'assistant' && message.pendingDraft ? (
               <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3">
                 <p className="text-xs font-semibold uppercase tracking-[0.1em] text-amber-700">
                   {message.pendingDraft.provider === 'gmail' ? 'Gmail' : 'Outlook'} Draft Review
                 </p>
                 <p className="mt-1 text-xs text-black/70">
-                  Atlas will only create a draft. It will not send email on your behalf.
+                  Draft only. It will never send automatically.
                 </p>
                 <p className="mt-2 text-xs text-black">
                   <span className="font-semibold">To:</span> {message.pendingDraft.to.join(', ')}
@@ -482,7 +476,15 @@ const ChatPage = () => {
                   <button
                     type="button"
                     disabled={message.draftState === 'creating' || message.draftState === 'created'}
-                    onClick={() => cancelDraft(index)}
+                    onClick={() =>
+                      setMessages((prev) =>
+                        prev.map((item, itemIndex) =>
+                          itemIndex === index
+                            ? { ...item, draftState: 'cancelled', draftError: '' }
+                            : item,
+                        ),
+                      )
+                    }
                     className="inline-flex items-center gap-1 rounded-lg border border-black/15 bg-white px-2.5 py-1.5 text-xs text-black disabled:opacity-50"
                   >
                     <X size={12} />
@@ -504,22 +506,22 @@ const ChatPage = () => {
                       rel="noreferrer"
                       className="rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-xs text-emerald-700"
                     >
-                      Open Draft in {message.pendingDraft.provider === 'gmail' ? 'Gmail' : 'Outlook'}
+                      Open Draft
                     </a>
                   ) : null}
                 </div>
-                {message.draftState === 'cancelled' ? (
-                  <p className="mt-2 text-xs text-black/60">Draft creation cancelled.</p>
-                ) : null}
                 {message.draftState === 'failed' && message.draftError ? (
                   <p className="mt-2 text-xs text-red-600">{message.draftError}</p>
                 ) : null}
               </div>
             ) : null}
+
             {message.role === 'assistant' && message.downloads && message.downloads.length > 0 ? (
               <div className="mt-3 flex flex-wrap gap-2">
                 {message.downloads.map((download, downloadIndex) => {
-                  const label = `${download.kind.toUpperCase()}${download.origin === 'local' ? ' (Download)' : ' (Microsoft)'}`;
+                  const label = `${download.kind.toUpperCase()}${
+                    download.origin === 'local' ? ' (Download)' : ''
+                  }`;
                   if (download.webUrl) {
                     return (
                       <a
@@ -568,3 +570,4 @@ const ChatPage = () => {
 };
 
 export default ChatPage;
+

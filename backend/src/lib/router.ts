@@ -37,11 +37,11 @@ export const defaultRouterModelConfig: RouterModelConfig = {
   routerModel:
     process.env.ATLAS_ROUTER_MODEL ||
     process.env.OPENROUTER_ROUTER_MODEL ||
-    (hasGemini ? 'gemini/gemini-2.5-flash' : 'anthropic/claude-3-5-haiku-20241022'),
+    (hasGemini ? 'gemini/gemini-2.5-flash' : 'anthropic/claude-opus-4.6'),
   midModel:
     process.env.ATLAS_MID_MODEL ||
     process.env.OPENROUTER_MID_MODEL ||
-    (hasAnthropic ? 'anthropic/claude-sonnet-4.6' : 'gemini/gemini-2.5-flash'),
+    (hasGemini ? 'gemini/gemini-2.5-flash' : 'anthropic/claude-opus-4.6'),
   bigModel:
     process.env.ATLAS_BIG_MODEL ||
     process.env.OPENROUTER_BIG_MODEL ||

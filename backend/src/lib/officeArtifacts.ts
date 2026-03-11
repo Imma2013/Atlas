@@ -4,17 +4,23 @@ import officeParser from 'officeparser';
 
 const escapeCsvCell = (value: string) => `"${value.replace(/"/g, '""')}"`;
 
-export const createWorkbookFromText = (input: { text: string }) => {
+export const createWorkbookFromText = (input: { text: string; title?: string }) => {
   const lines = input.text
     .split(/\r?\n/)
     .map((line) => line.trim())
     .filter(Boolean)
-    .slice(0, 200);
+    .slice(0, 80);
 
-  const rows: string[][] =
-    lines.length > 0
-      ? [['Section', 'Details'], ...lines.map((line, index) => [`Row ${index + 1}`, line])]
-      : [['Section', 'Details'], ['Summary', input.text.trim() || 'No content']];
+  const title = (input.title || 'Astro Sheet').trim();
+  const rows: string[][] = [
+    ['Title', title],
+    ['Generated', new Date().toISOString()],
+    [],
+    ['Section', 'Details'],
+    ...(lines.length > 0
+      ? lines.map((line, index) => [`Item ${index + 1}`, line])
+      : [['Summary', input.text.trim() || 'No content']]),
+  ];
 
   const sheet = XLSX.utils.aoa_to_sheet(rows);
   const workbook = XLSX.utils.book_new();
@@ -108,4 +114,3 @@ export const extractOfficeText = async (buffer: Buffer) => {
 
 export const toCsvFromText = (text: string) =>
   ['Section,Details', `${escapeCsvCell('Summary')},${escapeCsvCell(text.replace(/\r?\n/g, ' '))}`].join('\n');
-

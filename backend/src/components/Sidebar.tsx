@@ -4,7 +4,6 @@ import { cn } from '@/lib/utils';
 import {
   MessageSquare,
   Activity,
-  AppWindow,
   Settings,
 } from 'lucide-react';
 import Link from 'next/link';
@@ -35,12 +34,6 @@ const Sidebar = ({ children }: { children: React.ReactNode }) => {
       href: '/activity',
       active: segments.includes('activity'),
       label: 'Activity',
-    },
-    {
-      icon: AppWindow,
-      href: '/apps',
-      active: segments.includes('apps'),
-      label: 'Apps',
     },
     {
       icon: Settings,
