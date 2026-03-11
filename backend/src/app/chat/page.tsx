@@ -12,6 +12,7 @@ import {
   getMicrosoftAccessToken,
   hasMicrosoftAppScopes,
 } from '@/lib/microsoftAuthClient';
+import { GOOGLE_LOGOS, MICROSOFT_LOGOS } from '@/lib/appLogos';
 import type { GoogleAppKey } from '@/lib/googleScopes';
 import type { MicrosoftAppKey } from '@/lib/microsoftScopes';
 import {
@@ -111,13 +112,13 @@ const MICROSOFT_CONNECTORS: Array<{
   label: string;
   icon: string;
 }> = [
-  { key: 'outlook', label: 'Outlook Mail', icon: '/apps/outlook.svg' },
-  { key: 'calendar', label: 'Outlook Calendar', icon: '/apps/outlook.svg' },
-  { key: 'word', label: 'Word', icon: '/apps/word.svg' },
-  { key: 'excel', label: 'Excel', icon: '/apps/excel.svg' },
-  { key: 'powerpoint', label: 'PowerPoint', icon: '/apps/powerpoint.svg' },
-  { key: 'onedrive', label: 'OneDrive', icon: '/apps/onedrive.svg' },
-  { key: 'teams', label: 'Teams', icon: '/apps/teams.svg' },
+  { key: 'outlook', label: 'Outlook Mail', icon: MICROSOFT_LOGOS.outlook },
+  { key: 'calendar', label: 'Outlook Calendar', icon: MICROSOFT_LOGOS.calendar },
+  { key: 'word', label: 'Word', icon: MICROSOFT_LOGOS.word },
+  { key: 'excel', label: 'Excel', icon: MICROSOFT_LOGOS.excel },
+  { key: 'powerpoint', label: 'PowerPoint', icon: MICROSOFT_LOGOS.powerpoint },
+  { key: 'onedrive', label: 'OneDrive', icon: MICROSOFT_LOGOS.onedrive },
+  { key: 'teams', label: 'Teams', icon: MICROSOFT_LOGOS.teams },
 ];
 
 const GOOGLE_CONNECTORS: Array<{
@@ -128,32 +129,32 @@ const GOOGLE_CONNECTORS: Array<{
   {
     key: 'gmail',
     label: 'Gmail',
-    icon: 'https://ssl.gstatic.com/ui/v1/icons/mail/rfr/gmail.ico',
+    icon: GOOGLE_LOGOS.gmail,
   },
   {
     key: 'calendar',
     label: 'Google Calendar',
-    icon: 'https://ssl.gstatic.com/calendar/images/dynamiclogo_2020q4/calendar_31_2x.png',
+    icon: GOOGLE_LOGOS.calendar,
   },
   {
     key: 'drive',
     label: 'Google Drive',
-    icon: 'https://ssl.gstatic.com/images/branding/product/2x/drive_2020q4_32dp.png',
+    icon: GOOGLE_LOGOS.drive,
   },
   {
     key: 'docs',
     label: 'Google Docs',
-    icon: 'https://ssl.gstatic.com/docs/doclist/images/mediatype/icon_1_document_x32.png',
+    icon: GOOGLE_LOGOS.docs,
   },
   {
     key: 'sheets',
     label: 'Google Sheets',
-    icon: 'https://ssl.gstatic.com/docs/doclist/images/mediatype/icon_1_spreadsheet_x32.png',
+    icon: GOOGLE_LOGOS.sheets,
   },
   {
     key: 'slides',
     label: 'Google Slides',
-    icon: 'https://ssl.gstatic.com/docs/doclist/images/mediatype/icon_1_presentation_x32.png',
+    icon: GOOGLE_LOGOS.slides,
   },
 ];
 
@@ -637,17 +638,17 @@ const ChatPage = () => {
   const getDownloadIcon = (download: NonNullable<ChatMessage['downloads']>[number]) => {
     if (download.origin === 'google') {
       if (download.kind === 'word') {
-        return 'https://ssl.gstatic.com/docs/doclist/images/mediatype/icon_1_document_x32.png';
+        return GOOGLE_LOGOS.docs;
       }
       if (download.kind === 'excel') {
-        return 'https://ssl.gstatic.com/docs/doclist/images/mediatype/icon_1_spreadsheet_x32.png';
+        return GOOGLE_LOGOS.sheets;
       }
-      return 'https://ssl.gstatic.com/docs/doclist/images/mediatype/icon_1_presentation_x32.png';
+      return GOOGLE_LOGOS.slides;
     }
 
-    if (download.kind === 'word') return '/apps/word.svg';
-    if (download.kind === 'excel') return '/apps/excel.svg';
-    return '/apps/powerpoint.svg';
+    if (download.kind === 'word') return MICROSOFT_LOGOS.word;
+    if (download.kind === 'excel') return MICROSOFT_LOGOS.excel;
+    return MICROSOFT_LOGOS.powerpoint;
   };
 
   return (

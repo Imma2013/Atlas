@@ -8,6 +8,7 @@ import {
   hasMicrosoftAppScopes,
 } from '@/lib/microsoftAuthClient';
 import type { MicrosoftAppKey } from '@/lib/microsoftScopes';
+import { MICROSOFT_LOGOS } from '@/lib/appLogos';
 import { CheckCircle2, Link2, LogOut, Mail, RefreshCw } from 'lucide-react';
 
 type TabKey = 'account' | 'connections';
@@ -24,43 +25,43 @@ const connectors: ConnectorItem[] = [
     key: 'outlook',
     label: 'Outlook Mail',
     description: 'Read inbox context and create drafts.',
-    icon: '/apps/outlook.svg',
+    icon: MICROSOFT_LOGOS.outlook,
   },
   {
     key: 'calendar',
     label: 'Calendar',
     description: 'Read events and scheduling context.',
-    icon: '/apps/outlook.svg',
+    icon: MICROSOFT_LOGOS.calendar,
   },
   {
     key: 'word',
     label: 'Word',
     description: 'Create and update documents.',
-    icon: '/apps/word.svg',
+    icon: MICROSOFT_LOGOS.word,
   },
   {
     key: 'excel',
     label: 'Excel',
     description: 'Create and update spreadsheets.',
-    icon: '/apps/excel.svg',
+    icon: MICROSOFT_LOGOS.excel,
   },
   {
     key: 'powerpoint',
     label: 'PowerPoint',
     description: 'Create and update presentations.',
-    icon: '/apps/powerpoint.svg',
+    icon: MICROSOFT_LOGOS.powerpoint,
   },
   {
     key: 'onedrive',
     label: 'OneDrive',
     description: 'Store and open generated files.',
-    icon: '/apps/onedrive.svg',
+    icon: MICROSOFT_LOGOS.onedrive,
   },
   {
     key: 'teams',
     label: 'Teams',
     description: 'Read meeting context and transcripts.',
-    icon: '/apps/teams.svg',
+    icon: MICROSOFT_LOGOS.teams,
   },
 ];
 
