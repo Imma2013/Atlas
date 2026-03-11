@@ -1,5 +1,5 @@
-import { refreshMicrosoftToken } from '@/lib/microsoft';
-import { isMicrosoftAppKey } from '@/lib/microsoftScopes';
+import { refreshGoogleToken } from '@/lib/google';
+import { isGoogleAppKey } from '@/lib/googleScopes';
 import { z } from 'zod';
 
 export const runtime = 'nodejs';
@@ -16,8 +16,8 @@ export const POST = async (req: Request) => {
       return Response.json({ message: 'Invalid request body' }, { status: 400 });
     }
 
-    const app = isMicrosoftAppKey(parsed.data.app) ? parsed.data.app : undefined;
-    const tokens = await refreshMicrosoftToken({
+    const app = isGoogleAppKey(parsed.data.app) ? parsed.data.app : undefined;
+    const tokens = await refreshGoogleToken({
       refreshToken: parsed.data.refreshToken,
       app,
     });
@@ -25,10 +25,11 @@ export const POST = async (req: Request) => {
   } catch (error: any) {
     return Response.json(
       {
-        message: 'Failed to refresh Microsoft token',
+        message: 'Failed to refresh Google token',
         error: error?.message || 'Unknown error',
       },
       { status: 401 },
     );
   }
 };
+

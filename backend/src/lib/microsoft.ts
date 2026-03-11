@@ -1,3 +1,5 @@
+import { resolveScopesForApp } from '@/lib/microsoftScopes';
+import type { MicrosoftAppKey } from '@/lib/microsoftScopes';
 const GRAPH_BASE_URL = 'https://graph.microsoft.com/v1.0';
 
 const normalizeAppBaseUrl = (value?: string) =>
@@ -45,7 +47,10 @@ const graphRequest = async <T>(
   return (await response.json()) as T;
 };
 
-export const getMicrosoftAuthUrl = (state?: string): string => {
+export const getMicrosoftAuthUrl = (input?: {
+  state?: string;
+  app?: MicrosoftAppKey;
+}): string => {
   const tenant = process.env.MICROSOFT_TENANT_ID || 'common';
   const clientId = process.env.MICROSOFT_CLIENT_ID;
   const redirectUri = resolveMicrosoftRedirectUri();
@@ -54,19 +59,7 @@ export const getMicrosoftAuthUrl = (state?: string): string => {
     throw new Error('Missing Microsoft OAuth env vars');
   }
 
-  const scope = [
-    'openid',
-    'profile',
-    'offline_access',
-    'User.Read',
-    'Mail.Read',
-    'Mail.ReadWrite',
-    'Calendars.Read',
-    'Files.Read',
-    'Files.ReadWrite',
-    'Sites.Read.All',
-    'OnlineMeetings.Read',
-  ].join(' ');
+  const scope = resolveScopesForApp(input?.app).join(' ');
 
   const params = new URLSearchParams({
     client_id: clientId,
@@ -74,14 +67,17 @@ export const getMicrosoftAuthUrl = (state?: string): string => {
     redirect_uri: redirectUri,
     response_mode: 'query',
     scope,
-    state: state || crypto.randomUUID(),
+    state: input?.state || crypto.randomUUID(),
     prompt: 'select_account',
   });
 
   return `https://login.microsoftonline.com/${tenant}/oauth2/v2.0/authorize?${params.toString()}`;
 };
 
-export const exchangeMicrosoftCode = async (code: string) => {
+export const exchangeMicrosoftCode = async (input: {
+  code: string;
+  app?: MicrosoftAppKey;
+}) => {
   const tenant = process.env.MICROSOFT_TENANT_ID || 'common';
   const clientId = process.env.MICROSOFT_CLIENT_ID;
   const clientSecret = process.env.MICROSOFT_CLIENT_SECRET;
@@ -91,12 +87,14 @@ export const exchangeMicrosoftCode = async (code: string) => {
     throw new Error('Missing Microsoft OAuth env vars');
   }
 
+  const scope = resolveScopesForApp(input.app).join(' ');
   const body = new URLSearchParams({
     client_id: clientId,
     client_secret: clientSecret,
     grant_type: 'authorization_code',
-    code,
+    code: input.code,
     redirect_uri: redirectUri,
+    scope,
   });
 
   const response = await fetch(
@@ -187,7 +185,27 @@ export const getDriveItemContent = async (accessToken: string, id: string) => {
   return response.text();
 };
 
-export const refreshMicrosoftToken = async (refreshToken: string) => {
+export const getDriveItemBuffer = async (accessToken: string, id: string) => {
+  const response = await fetch(`${GRAPH_BASE_URL}/me/drive/items/${id}/content`, {
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+    },
+    cache: 'no-store',
+  });
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`Failed to load drive item content (${response.status}): ${text}`);
+  }
+
+  const buffer = await response.arrayBuffer();
+  return Buffer.from(buffer);
+};
+
+export const refreshMicrosoftToken = async (input: {
+  refreshToken: string;
+  app?: MicrosoftAppKey;
+}) => {
   const tenant = process.env.MICROSOFT_TENANT_ID || 'common';
   const clientId = process.env.MICROSOFT_CLIENT_ID;
   const clientSecret = process.env.MICROSOFT_CLIENT_SECRET;
@@ -197,12 +215,14 @@ export const refreshMicrosoftToken = async (refreshToken: string) => {
     throw new Error('Missing Microsoft OAuth env vars');
   }
 
+  const scope = resolveScopesForApp(input.app).join(' ');
   const body = new URLSearchParams({
     client_id: clientId,
     client_secret: clientSecret,
     grant_type: 'refresh_token',
-    refresh_token: refreshToken,
+    refresh_token: input.refreshToken,
     redirect_uri: redirectUri,
+    scope,
   });
 
   const response = await fetch(
@@ -228,7 +248,7 @@ export const refreshMicrosoftToken = async (refreshToken: string) => {
 export const createDriveFile = async (input: {
   accessToken: string;
   fileName: string;
-  content: string;
+  content: string | Buffer | Uint8Array;
   contentType?: string;
   parentItemId?: string;
 }) => {
@@ -246,7 +266,7 @@ export const createDriveFile = async (input: {
         Authorization: `Bearer ${input.accessToken}`,
         'Content-Type': input.contentType || 'text/plain; charset=utf-8',
       },
-      body: input.content,
+      body: input.content as BodyInit,
       cache: 'no-store',
     },
   );
@@ -262,7 +282,7 @@ export const createDriveFile = async (input: {
 export const updateDriveFileContent = async (input: {
   accessToken: string;
   itemId: string;
-  content: string;
+  content: string | Buffer | Uint8Array;
   contentType?: string;
 }) => {
   const response = await fetch(
@@ -273,7 +293,7 @@ export const updateDriveFileContent = async (input: {
         Authorization: `Bearer ${input.accessToken}`,
         'Content-Type': input.contentType || 'text/plain; charset=utf-8',
       },
-      body: input.content,
+      body: input.content as BodyInit,
       cache: 'no-store',
     },
   );

@@ -5,7 +5,6 @@ import {
   MessageSquare,
   Activity,
   AppWindow,
-  CreditCard,
   Settings,
 } from 'lucide-react';
 import Link from 'next/link';
@@ -42,12 +41,6 @@ const Sidebar = ({ children }: { children: React.ReactNode }) => {
       href: '/apps',
       active: segments.includes('apps'),
       label: 'Apps',
-    },
-    {
-      icon: CreditCard,
-      href: '/billing',
-      active: segments.includes('billing'),
-      label: 'Billing',
     },
     {
       icon: Settings,

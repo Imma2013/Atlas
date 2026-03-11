@@ -141,6 +141,7 @@ export const POST = async (req: Request) => {
       const microsoftAccessToken =
         req.headers.get('x-microsoft-access-token') ||
         req.headers.get('authorization')?.replace(/^Bearer\s+/i, '');
+      const googleAccessToken = req.headers.get('x-google-access-token') || undefined;
       const userId = body.userId || req.headers.get('x-user-id') || undefined;
 
       try {
@@ -148,6 +149,7 @@ export const POST = async (req: Request) => {
           query: message.content,
           userId,
           microsoftAccessToken: microsoftAccessToken || undefined,
+          googleAccessToken: googleAccessToken || undefined,
           sources: body.sources,
           history: body.history,
           models: {

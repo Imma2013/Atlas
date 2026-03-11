@@ -1,12 +1,12 @@
 'use client';
 
-import { MICROSOFT_APP_SCOPES } from '@/lib/microsoftScopes';
-import type { MicrosoftAppKey } from '@/lib/microsoftScopes';
+import { GOOGLE_APP_SCOPES } from '@/lib/googleScopes';
+import type { GoogleAppKey } from '@/lib/googleScopes';
 
-const ACCESS_TOKEN_KEY = 'atlasMicrosoftAccessToken';
-const REFRESH_TOKEN_KEY = 'atlasMicrosoftRefreshToken';
-const EXPIRES_AT_KEY = 'atlasMicrosoftExpiresAt';
-const SCOPE_KEY = 'atlasMicrosoftGrantedScopes';
+const ACCESS_TOKEN_KEY = 'atlasGoogleAccessToken';
+const REFRESH_TOKEN_KEY = 'atlasGoogleRefreshToken';
+const EXPIRES_AT_KEY = 'atlasGoogleExpiresAt';
+const SCOPE_KEY = 'atlasGoogleGrantedScopes';
 
 const isBrowser = () => typeof window !== 'undefined';
 
@@ -23,7 +23,7 @@ const getStored = () => {
   };
 };
 
-export const clearMicrosoftTokens = () => {
+export const clearGoogleTokens = () => {
   if (!isBrowser()) return;
   localStorage.removeItem(ACCESS_TOKEN_KEY);
   localStorage.removeItem(REFRESH_TOKEN_KEY);
@@ -31,7 +31,7 @@ export const clearMicrosoftTokens = () => {
   localStorage.removeItem(SCOPE_KEY);
 };
 
-export const storeMicrosoftTokens = (tokens: {
+export const storeGoogleTokens = (tokens: {
   access_token: string;
   refresh_token?: string;
   expires_in?: number;
@@ -49,47 +49,49 @@ export const storeMicrosoftTokens = (tokens: {
   }
 };
 
-export const getMicrosoftAccessToken = async (app?: MicrosoftAppKey): Promise<string> => {
+export const getGoogleAccessToken = async (app?: GoogleAppKey): Promise<string> => {
   const { accessToken, refreshToken, expiresAt } = getStored();
   if (!accessToken) return '';
 
-  // Refresh 60 seconds before expiry.
   const needsRefresh = expiresAt > 0 && Date.now() >= expiresAt - 60_000;
   if (!needsRefresh) return accessToken;
 
   if (!refreshToken) {
-    clearMicrosoftTokens();
+    clearGoogleTokens();
     return '';
   }
 
   try {
-    const res = await fetch('/api/microsoft/refresh', {
+    const res = await fetch('/api/google/refresh', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ refreshToken, app }),
     });
     const payload = await res.json().catch(() => ({}));
     if (!res.ok || !payload?.tokens?.access_token) {
-      clearMicrosoftTokens();
+      clearGoogleTokens();
       return '';
     }
-
-    storeMicrosoftTokens(payload.tokens);
+    storeGoogleTokens({
+      ...payload.tokens,
+      refresh_token: payload.tokens.refresh_token || refreshToken,
+    });
     return payload.tokens.access_token as string;
   } catch {
-    clearMicrosoftTokens();
+    clearGoogleTokens();
     return '';
   }
 };
 
-export const getMicrosoftGrantedScopes = (): string[] => {
+export const getGoogleGrantedScopes = (): string[] => {
   const scope = getStored().scope;
   if (!scope) return [];
   return scope.split(/\s+/).map((v) => v.trim()).filter(Boolean);
 };
 
-export const hasMicrosoftAppScopes = (app: MicrosoftAppKey): boolean => {
-  const granted = new Set(getMicrosoftGrantedScopes());
-  const required = MICROSOFT_APP_SCOPES[app] || [];
+export const hasGoogleAppScopes = (app: GoogleAppKey): boolean => {
+  const granted = new Set(getGoogleGrantedScopes());
+  const required = GOOGLE_APP_SCOPES[app] || [];
   return required.every((scope) => granted.has(scope));
 };
+

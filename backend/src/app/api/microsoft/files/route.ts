@@ -1,11 +1,13 @@
 import {
   createDriveFile,
   createDriveFolder,
+  getDriveItemBuffer,
   getDriveItemContent,
   listDriveItemChildren,
   listDriveRootChildren,
   updateDriveFileContent,
 } from '@/lib/microsoft';
+import { extractOfficeText, extractWorkbookText } from '@/lib/officeArtifacts';
 import { z } from 'zod';
 
 export const runtime = 'nodejs';
@@ -24,11 +26,21 @@ export const GET = async (req: Request) => {
     const { searchParams } = new URL(req.url);
     const fileId = searchParams.get('id');
     const includeContent = searchParams.get('content') === '1';
+    const format = (searchParams.get('format') || 'text').toLowerCase();
     const children = searchParams.get('children') === '1';
     const top = Number(searchParams.get('top') || '25');
 
     if (fileId && includeContent) {
-      const content = await getDriveItemContent(accessToken, fileId);
+      let content = '';
+      if (format === 'excel' || format === 'xlsx') {
+        const buffer = await getDriveItemBuffer(accessToken, fileId);
+        content = extractWorkbookText(buffer);
+      } else if (format === 'powerpoint' || format === 'pptx' || format === 'word' || format === 'docx') {
+        const buffer = await getDriveItemBuffer(accessToken, fileId);
+        content = await extractOfficeText(buffer);
+      } else {
+        content = await getDriveItemContent(accessToken, fileId);
+      }
       return Response.json({ fileId, content }, { status: 200 });
     }
 

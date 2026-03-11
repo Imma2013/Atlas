@@ -8,26 +8,26 @@ export type ChatModelOption = {
 // Canonical direct-provider model IDs for chat selection.
 export const CHAT_MODEL_OPTIONS: ChatModelOption[] = [
   {
+    value: 'gemini/gemini-2.5-flash',
+    label: 'ATLAS JIT (Gemini Flash)',
+    provider: 'gemini',
+    tier: 'router',
+  },
+  {
     value: 'anthropic/claude-3-5-haiku-20241022',
-    label: 'Claude 3.5 Haiku',
+    label: 'ATLAS Router (Haiku)',
     provider: 'anthropic',
     tier: 'router',
   },
   {
-    value: 'anthropic/claude-sonnet-4-20250514',
-    label: 'Claude Sonnet 4',
+    value: 'anthropic/claude-sonnet-4.6',
+    label: 'ATLAS Final (Sonnet 4.6)',
     provider: 'anthropic',
     tier: 'mid',
   },
   {
-    value: 'anthropic/claude-opus-4-1-20250805',
-    label: 'Claude Opus 4.1',
-    provider: 'anthropic',
-    tier: 'big',
-  },
-  {
-    value: 'anthropic/claude-opus-4-20250514',
-    label: 'Claude Opus 4',
+    value: 'anthropic/claude-opus-4.6',
+    label: 'ATLAS Final+ (Opus 4.6)',
     provider: 'anthropic',
     tier: 'big',
   },
@@ -57,4 +57,4 @@ export const CHAT_MODEL_OPTIONS: ChatModelOption[] = [
   },
 ];
 
-export const DEFAULT_CHAT_MODEL = 'anthropic/claude-sonnet-4-20250514';
+export const DEFAULT_CHAT_MODEL = 'anthropic/claude-sonnet-4.6';

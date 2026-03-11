@@ -1,4 +1,5 @@
 import { exchangeMicrosoftCode, getMicrosoftAuthUrl } from '@/lib/microsoft';
+import { createOAuthState, isMicrosoftAppKey, parseOAuthState } from '@/lib/microsoftScopes';
 
 export const runtime = 'nodejs';
 
@@ -7,13 +8,19 @@ export const GET = async (req: Request) => {
     const { searchParams } = new URL(req.url);
     const code = searchParams.get('code');
     const state = searchParams.get('state') || undefined;
+    const appParam = searchParams.get('app');
+    const app = isMicrosoftAppKey(appParam) ? appParam : undefined;
 
     if (!code) {
-      return Response.json({ authUrl: getMicrosoftAuthUrl(state) }, { status: 200 });
+      const nonce = state || crypto.randomUUID();
+      const authState = createOAuthState({ nonce, app });
+      return Response.json({ authUrl: getMicrosoftAuthUrl({ state: authState, app }) }, { status: 200 });
     }
 
-    const tokens = await exchangeMicrosoftCode(code);
-    return Response.json({ tokens }, { status: 200 });
+    const parsedState = parseOAuthState(state);
+    const scopedApp = parsedState.app || app;
+    const tokens = await exchangeMicrosoftCode({ code, app: scopedApp });
+    return Response.json({ tokens, app: scopedApp || null }, { status: 200 });
   } catch (error: any) {
     return Response.json(
       { message: 'Microsoft auth failed', error: error?.message || 'Unknown error' },

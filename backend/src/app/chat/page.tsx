@@ -3,18 +3,55 @@
 import { useMemo, useState } from 'react';
 import { CHAT_MODEL_OPTIONS, DEFAULT_CHAT_MODEL } from '@/lib/modelCatalog';
 import { getMicrosoftAccessToken } from '@/lib/microsoftAuthClient';
-import { Globe, SendHorizonal, Sparkles } from 'lucide-react';
+import { getGoogleAccessToken } from '@/lib/googleAuthClient';
+import { Check, Globe, SendHorizonal, Sparkles, X } from 'lucide-react';
+
+type MCPServer =
+  | 'Word'
+  | 'Excel'
+  | 'PowerPoint'
+  | 'Outlook'
+  | 'OneDrive'
+  | 'Teams'
+  | 'Calendar'
+  | 'SharePoint';
+
+type PendingDraft = {
+  provider: 'outlook' | 'gmail';
+  to: string[];
+  subject: string;
+  body: string;
+  contentType: 'Text' | 'HTML';
+};
+
+type LoadedMcpServer = {
+  serverId: string;
+  displayName: string;
+  source: 'official' | 'custom';
+  mode: 'read_only' | 'read_draft';
+  tools: string[];
+  blockedTools: string[];
+};
 
 type ChatMessage = {
   role: 'user' | 'assistant';
   text: string;
+  route?: {
+    required_mcp_servers: MCPServer[];
+    reasoning: string;
+  };
+  pendingDraft?: PendingDraft;
+  draftState?: 'idle' | 'creating' | 'created' | 'failed' | 'cancelled';
+  draftError?: string;
+  draftWebLink?: string;
+  loadedMcpServers?: LoadedMcpServer[];
   downloads?: Array<{
     kind: 'word' | 'excel' | 'powerpoint';
     fileName: string;
     mimeType: string;
     contentBase64?: string;
     webUrl?: string;
-    origin: 'microsoft' | 'local';
+    origin: 'microsoft' | 'google' | 'local';
   }>;
 };
 
@@ -95,7 +132,7 @@ const ChatPage = () => {
     () =>
       includeWeb
         ? 'Ask with workspace + web context (example: summarize this Teams meeting and compare with latest market updates).'
-        : 'Ask using Microsoft workspace only (example: draft a reply from Brad email and export to Word).',
+        : 'Ask using connected Microsoft + Google workspace (example: summarize Gmail invoice and export to Excel).',
     [includeWeb],
   );
 
@@ -106,6 +143,7 @@ const ChatPage = () => {
     const userId = getOrCreateUserId();
     const chatId = getOrCreateChatId();
     const microsoftAccessToken = await getMicrosoftAccessToken();
+    const googleAccessToken = await getGoogleAccessToken();
     const currentHistory = asHistory(messages);
 
     setError('');
@@ -120,6 +158,9 @@ const ChatPage = () => {
           'Content-Type': 'application/json',
           ...(microsoftAccessToken
             ? { 'x-microsoft-access-token': microsoftAccessToken }
+            : {}),
+          ...(googleAccessToken
+            ? { 'x-google-access-token': googleAccessToken }
             : {}),
         },
         body: JSON.stringify({
@@ -148,8 +189,39 @@ const ChatPage = () => {
           ? data.output
           : data?.output?.answer || JSON.stringify(data?.output ?? data, null, 2);
       const downloads = Array.isArray(data?.downloads) ? data.downloads : [];
+      const route =
+        data?.route &&
+        Array.isArray(data.route.required_mcp_servers) &&
+        typeof data.route.reasoning === 'string'
+          ? {
+              required_mcp_servers: data.route.required_mcp_servers as MCPServer[],
+              reasoning: data.route.reasoning as string,
+            }
+          : undefined;
+      const pendingDraft =
+        data?.pendingDraft &&
+        (data.pendingDraft.provider === 'gmail' || data.pendingDraft.provider === 'outlook') &&
+        Array.isArray(data.pendingDraft.to) &&
+        typeof data.pendingDraft.subject === 'string' &&
+        typeof data.pendingDraft.body === 'string'
+          ? (data.pendingDraft as PendingDraft)
+          : undefined;
+      const loadedMcpServers = Array.isArray(data?.loadedMcpServers)
+        ? (data.loadedMcpServers as LoadedMcpServer[])
+        : [];
 
-      setMessages((prev) => [...prev, { role: 'assistant', text: output, downloads }]);
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: 'assistant',
+          text: output,
+          downloads,
+          route,
+          pendingDraft,
+          loadedMcpServers,
+          draftState: pendingDraft ? 'idle' : undefined,
+        },
+      ]);
     } catch (e: any) {
       const message = e?.message || 'Chat request failed';
       setError(message);
@@ -157,6 +229,83 @@ const ChatPage = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const createEmailDraft = async (index: number) => {
+    const target = messages[index];
+    if (!target?.pendingDraft || target.role !== 'assistant') return;
+
+    setMessages((prev) =>
+      prev.map((item, itemIndex) =>
+        itemIndex === index
+          ? { ...item, draftState: 'creating', draftError: '' }
+          : item,
+      ),
+    );
+
+    try {
+      const isGmail = target.pendingDraft.provider === 'gmail';
+      const token = isGmail
+        ? await getGoogleAccessToken('gmail')
+        : await getMicrosoftAccessToken();
+      if (!token) {
+        throw new Error(
+          isGmail
+            ? 'Google Gmail is not connected. Connect in Apps first.'
+            : 'Microsoft is not connected. Connect in Apps first.',
+        );
+      }
+
+      const response = await fetch(isGmail ? '/api/google/drafts' : '/api/microsoft/drafts', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(isGmail
+            ? { 'x-google-access-token': token }
+            : { 'x-microsoft-access-token': token }),
+        },
+        body: JSON.stringify(target.pendingDraft),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(payload?.message || payload?.error || 'Failed to create draft');
+      }
+
+      setMessages((prev) =>
+        prev.map((item, itemIndex) =>
+          itemIndex === index
+            ? {
+                ...item,
+                draftState: 'created',
+                draftError: '',
+                draftWebLink: payload?.draft?.webLink || '',
+              }
+            : item,
+        ),
+      );
+    } catch (e: any) {
+      setMessages((prev) =>
+        prev.map((item, itemIndex) =>
+          itemIndex === index
+            ? {
+                ...item,
+                draftState: 'failed',
+                draftError: e?.message || 'Draft creation failed',
+              }
+            : item,
+        ),
+      );
+    }
+  };
+
+  const cancelDraft = (index: number) => {
+    setMessages((prev) =>
+      prev.map((item, itemIndex) =>
+        itemIndex === index
+          ? { ...item, draftState: 'cancelled', draftError: '' }
+          : item,
+      ),
+    );
   };
 
   return (
@@ -275,6 +424,98 @@ const ChatPage = () => {
           >
             <p className="mb-1 text-xs uppercase tracking-wide text-black/50">{message.role}</p>
             <pre className="whitespace-pre-wrap break-words text-sm text-black">{message.text}</pre>
+            {message.role === 'assistant' && message.route ? (
+              <div className="mt-3 rounded-xl border border-black/10 bg-slate-50 p-3">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-black/45">
+                  Router decision
+                </p>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {(message.route.required_mcp_servers || []).map((server) => (
+                    <span
+                      key={server}
+                      className="rounded-full border border-black/10 bg-white px-2.5 py-1 text-xs text-black/80"
+                    >
+                      {server}
+                    </span>
+                  ))}
+                </div>
+                <p className="mt-2 text-xs text-black/60">{message.route.reasoning}</p>
+                {message.loadedMcpServers && message.loadedMcpServers.length > 0 ? (
+                  <div className="mt-3 space-y-2">
+                    {message.loadedMcpServers.map((server) => (
+                      <div key={server.serverId} className="rounded-lg border border-black/10 bg-white p-2">
+                        <p className="text-xs font-semibold text-black">
+                          {server.displayName} ({server.serverId}) - {server.mode} - {server.source}
+                        </p>
+                        <p className="mt-1 text-[11px] text-black/70">
+                          Allowed tools: {server.tools.join(', ') || 'None'}
+                        </p>
+                        {server.blockedTools.length > 0 ? (
+                          <p className="mt-1 text-[11px] text-amber-700">
+                            Blocked tools: {server.blockedTools.join(', ')}
+                          </p>
+                        ) : null}
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+            {message.role === 'assistant' && message.pendingDraft ? (
+              <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3">
+                <p className="text-xs font-semibold uppercase tracking-[0.1em] text-amber-700">
+                  {message.pendingDraft.provider === 'gmail' ? 'Gmail' : 'Outlook'} Draft Review
+                </p>
+                <p className="mt-1 text-xs text-black/70">
+                  Atlas will only create a draft. It will not send email on your behalf.
+                </p>
+                <p className="mt-2 text-xs text-black">
+                  <span className="font-semibold">To:</span> {message.pendingDraft.to.join(', ')}
+                </p>
+                <p className="text-xs text-black">
+                  <span className="font-semibold">Subject:</span> {message.pendingDraft.subject}
+                </p>
+                <pre className="mt-2 max-h-40 overflow-auto whitespace-pre-wrap rounded-lg bg-white p-2 text-xs text-black/85">
+                  {message.pendingDraft.body}
+                </pre>
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    disabled={message.draftState === 'creating' || message.draftState === 'created'}
+                    onClick={() => cancelDraft(index)}
+                    className="inline-flex items-center gap-1 rounded-lg border border-black/15 bg-white px-2.5 py-1.5 text-xs text-black disabled:opacity-50"
+                  >
+                    <X size={12} />
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    disabled={message.draftState === 'creating' || message.draftState === 'created'}
+                    onClick={() => createEmailDraft(index)}
+                    className="inline-flex items-center gap-1 rounded-lg bg-black px-2.5 py-1.5 text-xs text-white disabled:opacity-50"
+                  >
+                    <Check size={12} />
+                    {message.draftState === 'creating' ? 'Creating...' : 'Create Draft'}
+                  </button>
+                  {message.draftState === 'created' && message.draftWebLink ? (
+                    <a
+                      href={message.draftWebLink}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-xs text-emerald-700"
+                    >
+                      Open Draft in {message.pendingDraft.provider === 'gmail' ? 'Gmail' : 'Outlook'}
+                    </a>
+                  ) : null}
+                </div>
+                {message.draftState === 'cancelled' ? (
+                  <p className="mt-2 text-xs text-black/60">Draft creation cancelled.</p>
+                ) : null}
+                {message.draftState === 'failed' && message.draftError ? (
+                  <p className="mt-2 text-xs text-red-600">{message.draftError}</p>
+                ) : null}
+              </div>
+            ) : null}
             {message.role === 'assistant' && message.downloads && message.downloads.length > 0 ? (
               <div className="mt-3 flex flex-wrap gap-2">
                 {message.downloads.map((download, downloadIndex) => {

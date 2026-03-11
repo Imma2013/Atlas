@@ -2,14 +2,13 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { storeMicrosoftTokens } from '@/lib/microsoftAuthClient';
-import { MICROSOFT_APP_LABELS, parseOAuthState } from '@/lib/microsoftScopes';
+import { storeGoogleTokens } from '@/lib/googleAuthClient';
+import { parseGoogleOAuthState } from '@/lib/googleScopes';
 
-const MicrosoftCallbackPage = () => {
+const GoogleCallbackPage = () => {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [error, setError] = useState('');
-  const [status, setStatus] = useState('Finishing sign-in and redirecting back to Apps...');
 
   useEffect(() => {
     const finishOAuth = async () => {
@@ -28,24 +27,20 @@ const MicrosoftCallbackPage = () => {
       }
 
       try {
-        const parsedState = parseOAuthState(state);
-        const appLabel = parsedState.app ? MICROSOFT_APP_LABELS[parsedState.app] : 'Microsoft';
-        setStatus(`Finalizing ${appLabel} connection...`);
         const response = await fetch(
-          `/api/microsoft/auth?code=${encodeURIComponent(code)}${state ? `&state=${encodeURIComponent(state)}` : ''}`,
+          `/api/google/auth?code=${encodeURIComponent(code)}${state ? `&state=${encodeURIComponent(state)}` : ''}`,
         );
         const payload = await response.json();
 
         if (!response.ok || !payload?.tokens?.access_token) {
-          throw new Error(payload?.message || 'Failed to complete Microsoft sign-in.');
+          throw new Error(payload?.message || 'Failed to complete Google sign-in.');
         }
 
-        storeMicrosoftTokens(payload.tokens);
-
-        const app = payload?.app || parsedState.app || '';
-        router.replace(`/apps?connected=1${app ? `&app=${encodeURIComponent(app)}` : ''}`);
+        storeGoogleTokens(payload.tokens);
+        const app = payload?.app || parseGoogleOAuthState(state).app || '';
+        router.replace(`/apps?google_connected=1${app ? `&google_app=${encodeURIComponent(app)}` : ''}`);
       } catch (oauthError: any) {
-        setError(oauthError?.message || 'Microsoft sign-in failed.');
+        setError(oauthError?.message || 'Google sign-in failed.');
       }
     };
 
@@ -55,12 +50,12 @@ const MicrosoftCallbackPage = () => {
   return (
     <div className="min-h-screen flex items-center justify-center px-4">
       <div className="max-w-md w-full rounded-xl border border-light-200 dark:border-dark-200 p-6 bg-light-primary dark:bg-dark-primary">
-        <h1 className="text-lg font-semibold text-black dark:text-white">Microsoft Connection</h1>
+        <h1 className="text-lg font-semibold text-black dark:text-white">Google Connection</h1>
         {error ? (
           <p className="mt-2 text-sm text-red-500">{error}</p>
         ) : (
           <p className="mt-2 text-sm text-black/65 dark:text-white/65">
-            {status}
+            Finishing sign-in and redirecting back to Apps...
           </p>
         )}
       </div>
@@ -68,4 +63,5 @@ const MicrosoftCallbackPage = () => {
   );
 };
 
-export default MicrosoftCallbackPage;
+export default GoogleCallbackPage;
+

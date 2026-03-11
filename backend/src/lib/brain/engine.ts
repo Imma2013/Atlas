@@ -1,22 +1,40 @@
 import { generateDeckOutline } from '@/lib/deck';
 import { createActivityItem } from '@/lib/activity';
 import { callOpenRouterChat } from '@/lib/openrouter';
-import { PLAN_CONFIGS } from '@/lib/plans';
 import { createDriveFile } from '@/lib/microsoft';
 import {
+  createGoogleDocFromText,
+  createGoogleSheetFromText,
+  createGoogleSlidesFromText,
+} from '@/lib/google';
+import {
+  createPresentationFromText,
+  createWorkbookFromText,
+} from '@/lib/officeArtifacts';
+import {
   BrainIntent,
-  classifyIntent,
   defaultRouterModelConfig,
+  inferIntentFromMcpServers,
+  MCPServer,
+  routeMcpServers,
   RouterModelConfig,
 } from '@/lib/router';
-import { searchWeb, searchWorkspace } from '@/lib/search';
+import { searchGoogleWorkspace, searchWeb, searchWorkspace } from '@/lib/search';
 import { summarizeText } from '@/lib/summaries';
-import { AIActionType, assertUsageWithinPlan, recordAIUsage } from '@/lib/usage';
+import { AIActionType, recordAIUsage } from '@/lib/usage';
 import { GROUNDED_SYSTEM_RULES } from '@/lib/prompts/grounding';
+import {
+  enforceToolCardLimit,
+  loadGoogleServersForPrompt,
+  loadMcpServersForRoute,
+  selectToolsForPrompt,
+  toCompressedToolCards,
+} from '@/lib/mcp/servers';
 
 export type BrainExecutionInput = {
   query: string;
   microsoftAccessToken?: string;
+  googleAccessToken?: string;
   userId?: string;
   models?: Partial<RouterModelConfig>;
   sources?: string[];
@@ -29,7 +47,33 @@ export type GeneratedDownload = {
   mimeType: string;
   contentBase64?: string;
   webUrl?: string;
-  origin: 'microsoft' | 'local';
+  origin: 'microsoft' | 'google' | 'local';
+};
+
+export type PendingDraft = {
+  provider: 'outlook' | 'gmail';
+  to: string[];
+  subject: string;
+  body: string;
+  contentType: 'Text' | 'HTML';
+};
+
+const buildExecutionRules = (cards: string[]) => {
+  const toolBlock = cards.length > 0 ? cards.join('\n') : 'Tool not available.';
+  return [
+    'You are the execution model.',
+    'RULES:',
+    '- Only use the tools provided.',
+    '- Do NOT invent tools.',
+    '- Do NOT invent parameters.',
+    '- Do NOT call tools not listed.',
+    '- Do NOT generate code.',
+    '- Do NOT generate UI.',
+    '- Do NOT plan beyond the current step.',
+    '- Do NOT hallucinate.',
+    'TOOLS AVAILABLE:',
+    toolBlock,
+  ].join('\n');
 };
 
 const mergeModels = (models?: Partial<RouterModelConfig>): RouterModelConfig => ({
@@ -72,6 +116,20 @@ const formatWorkspaceContext = (workspace: any) => {
   }));
 
   return JSON.stringify({ emails, files, events }, null, 2);
+};
+
+const mergeWorkspaceSnapshots = (input: {
+  microsoft?: any | null;
+  google?: any | null;
+}) => {
+  const m = input.microsoft || {};
+  const g = input.google || {};
+
+  return {
+    emails: [...(m.emails || []), ...(g.emails || [])].slice(0, 8),
+    files: [...(m.files || []), ...(g.files || [])].slice(0, 8),
+    events: [...(m.events || []), ...(g.events || [])].slice(0, 8),
+  };
 };
 
 const toBase64 = (value: string) => Buffer.from(value, 'utf8').toString('base64');
@@ -127,17 +185,9 @@ export const executeBrainFlow = async (input: BrainExecutionInput) => {
   const webEnabled = selectedSources.has('web');
   const workspaceEnabled =
     selectedSources.has('workspace') || selectedSources.size === 0;
-  const usageCheck = await assertUsageWithinPlan(input.userId);
-
-  if (!usageCheck.allowed) {
-    return {
-      intent: 'unknown' as BrainIntent,
-      output: `Monthly AI action limit reached for ${usageCheck.tier} plan (${usageCheck.used}/${usageCheck.limit}).`,
-      blocked: true,
-    };
-  }
-
-  const intent = await classifyIntent(input.query, models.routerModel);
+  const route = await routeMcpServers(input.query, models.routerModel);
+  const routeLoadedServers = loadMcpServersForRoute(route.required_mcp_servers);
+  const intent = inferIntentFromMcpServers(input.query, route.required_mcp_servers, webEnabled);
   const effectiveIntent: BrainIntent =
     intent === 'search_web' && !webEnabled
       ? 'search_workspace'
@@ -146,30 +196,58 @@ export const executeBrainFlow = async (input: BrainExecutionInput) => {
         : intent === 'unknown' && webEnabled
           ? 'search_web'
           : intent;
-  const tierConfig = PLAN_CONFIGS[usageCheck.tier];
-  const requiresBigModel =
-    effectiveIntent === 'generate_deck' || effectiveIntent === 'analyze_spreadsheet';
-
-  if (requiresBigModel && !tierConfig.allowBigModel) {
-    return {
-      intent,
-      output: `${usageCheck.tier} plan does not include Opus 4 actions. Upgrade to Pro or higher.`,
-      blocked: true,
-    };
-  }
+  const microsoftLoadedServers = selectToolsForPrompt({
+    intent: effectiveIntent,
+    query: input.query,
+    loaded: routeLoadedServers,
+  });
+  const googleLoadedServers = loadGoogleServersForPrompt({
+    enabled: Boolean(input.googleAccessToken),
+    intent: effectiveIntent,
+    query: input.query,
+  });
+  const toolCardLimit = Number(process.env.ATLAS_TOOL_CARD_LIMIT || '8');
+  const loadedMcpServers = enforceToolCardLimit(
+    [...microsoftLoadedServers, ...googleLoadedServers],
+    Number.isFinite(toolCardLimit) ? toolCardLimit : 8,
+  );
+  const executionRules = buildExecutionRules(
+    toCompressedToolCards(loadedMcpServers),
+  );
 
   const conversationContext = formatHistoryContext(input.history);
   let workspaceSnapshot: any = null;
 
-  if (workspaceEnabled && input.microsoftAccessToken) {
-    try {
-      workspaceSnapshot = await searchWorkspace({
-        accessToken: input.microsoftAccessToken,
-        query: input.query,
-      });
-    } catch {
-      workspaceSnapshot = null;
-    }
+  if (workspaceEnabled) {
+    const [microsoftSnapshot, googleSnapshot] = await Promise.all([
+      (async () => {
+        if (!input.microsoftAccessToken) return null;
+        try {
+          return await searchWorkspace({
+            accessToken: input.microsoftAccessToken,
+            query: input.query,
+          });
+        } catch {
+          return null;
+        }
+      })(),
+      (async () => {
+        if (!input.googleAccessToken) return null;
+        try {
+          return await searchGoogleWorkspace({
+            accessToken: input.googleAccessToken,
+            query: input.query,
+          });
+        } catch {
+          return null;
+        }
+      })(),
+    ]);
+
+    workspaceSnapshot = mergeWorkspaceSnapshots({
+      microsoft: microsoftSnapshot,
+      google: googleSnapshot,
+    });
   }
 
   const workspaceContextText = workspaceSnapshot
@@ -200,6 +278,7 @@ export const executeBrainFlow = async (input: BrainExecutionInput) => {
   let activityLinks: Record<string, string> = {};
   let output: unknown;
   const downloads: GeneratedDownload[] = [];
+  let pendingDraft: PendingDraft | undefined;
 
   const wantsFileOutput = /\b(make|create|turn|convert|export|save)\b/i.test(input.query);
   const wantsWordOutput =
@@ -225,7 +304,10 @@ export const executeBrainFlow = async (input: BrainExecutionInput) => {
       actionType = 'summary';
       modelUsed = models.midModel;
       activityType = 'email';
-      activityLinks = { outlook: 'https://outlook.office.com/mail/' };
+      activityLinks = {
+        ...(input.microsoftAccessToken ? { outlook: 'https://outlook.office.com/mail/' } : {}),
+        ...(input.googleAccessToken ? { gmail: 'https://mail.google.com/' } : {}),
+      };
       output = await summarizeText({
         content: buildContextualPrompt(
           'Summarize the relevant email thread and include decisions, asks, and follow-ups.',
@@ -258,31 +340,34 @@ export const executeBrainFlow = async (input: BrainExecutionInput) => {
 
       break;
     case 'search_workspace':
-      if (!input.microsoftAccessToken) {
+      if (!input.microsoftAccessToken && !input.googleAccessToken) {
         return {
           intent: effectiveIntent,
           output: webEnabled
-            ? 'Microsoft is not connected. Connect Apps for workspace answers or disable workspace and use web.'
-            : 'Microsoft access token is required for workspace search. Connect Microsoft in Apps.',
+            ? 'No workspace provider is connected. Connect Microsoft or Google in Apps, or disable workspace and use web.'
+            : 'Workspace token is required for workspace search. Connect Microsoft or Google in Apps.',
           requiresAuth: true,
         };
       }
       actionType = 'search';
       modelUsed = models.midModel;
       activityType = 'file';
-      output = workspaceSnapshot || (await searchWorkspace({
-        accessToken: input.microsoftAccessToken,
-        query: input.query,
-      }));
+      output = workspaceSnapshot;
       {
         const workspace = output as any;
         activityLinks = {
           outlook:
             workspace?.emails?.[0]?.links?.outlook || 'https://outlook.office.com/mail/',
+          gmail:
+            workspace?.emails?.[0]?.links?.gmail || 'https://mail.google.com/',
           onedrive:
             workspace?.files?.[0]?.links?.onedrive || 'https://onedrive.live.com/',
+          drive:
+            workspace?.files?.[0]?.links?.drive || 'https://drive.google.com/',
           teams:
             workspace?.events?.[0]?.links?.teams || 'https://teams.microsoft.com',
+          calendar:
+            workspace?.events?.[0]?.links?.calendar || 'https://calendar.google.com/',
         };
 
         const concise = await callOpenRouterChat({
@@ -292,7 +377,7 @@ export const executeBrainFlow = async (input: BrainExecutionInput) => {
           messages: [
             {
               role: 'system',
-              content: `${GROUNDED_SYSTEM_RULES}\nAnswer using only workspace context. Include working links under a "Links" section.`,
+              content: `${GROUNDED_SYSTEM_RULES}\n${executionRules}\nAnswer using only workspace context. Include working links under a "Links" section.`,
             },
             {
               role: 'user',
@@ -326,28 +411,78 @@ export const executeBrainFlow = async (input: BrainExecutionInput) => {
       actionType = 'search';
       modelUsed = models.midModel;
       activityType = 'web_search';
-      output = await searchWeb({ query: input.query, model: models.midModel });
+      {
+        const web = await searchWeb({ query: input.query, model: models.midModel });
+        const citations = (web.results || [])
+          .slice(0, 5)
+          .map((entry, index) => `${index + 1}. ${entry.name} - ${entry.url}`)
+          .join('\n');
+        output = `${web.summary}\n\nWeb citations:\n${citations || 'No citations found.'}`;
+      }
       break;
     case 'draft_email':
       actionType = 'draft';
       modelUsed = models.midModel;
       activityType = 'email';
       activityLinks = { outlook: 'https://outlook.office.com/mail/' };
-      output = await callOpenRouterChat({
-        model: models.midModel,
-        temperature: 0.3,
-        messages: [
-          {
-            role: 'system',
-            content:
-              `${GROUNDED_SYSTEM_RULES}\nDraft a concise professional email. If sender/recipient context exists, use it.`,
-          },
-          {
-            role: 'user',
-            content: buildContextualPrompt('Draft the requested email.'),
-          },
-        ],
-      });
+      {
+        const draftJson = await callOpenRouterChat({
+          model: models.midModel,
+          temperature: 0.1,
+          maxTokens: 900,
+          messages: [
+            {
+              role: 'system',
+              content:
+                `${GROUNDED_SYSTEM_RULES}\n${executionRules}\nReturn JSON only with keys: to (string[]), subject (string), body (string), contentType ("Text"|"HTML"). Never send email.`,
+            },
+            {
+              role: 'user',
+              content: buildContextualPrompt(
+                'Create an Outlook draft proposal. Keep it professional and concise.',
+              ),
+            },
+          ],
+        });
+
+        let parsedDraft: PendingDraft | null = null;
+        try {
+          const matched = draftJson.match(/\{[\s\S]*\}/);
+          const obj = JSON.parse(matched ? matched[0] : draftJson) as PendingDraft;
+          const recipients = Array.isArray(obj.to)
+            ? obj.to.map((item) => String(item || '').trim()).filter(Boolean)
+            : [];
+          parsedDraft = {
+            provider:
+              input.microsoftAccessToken || !input.googleAccessToken
+                ? 'outlook'
+                : 'gmail',
+            to: recipients,
+            subject: String(obj.subject || '').trim() || 'Draft from Atlas',
+            body: String(obj.body || '').trim() || input.query,
+            contentType: obj.contentType === 'HTML' ? 'HTML' : 'Text',
+          };
+        } catch {
+          parsedDraft = null;
+        }
+
+        if (!parsedDraft || parsedDraft.to.length === 0) {
+          output =
+            'Draft prepared, but recipient email is missing. Ask me again with recipient address (example: draft to alex@company.com).';
+          break;
+        }
+
+        pendingDraft = parsedDraft;
+        output = [
+          'Draft ready for review.',
+          `To: ${parsedDraft.to.join(', ')}`,
+          `Subject: ${parsedDraft.subject}`,
+          '',
+          parsedDraft.body,
+          '',
+          `Review and confirm to create the draft in ${parsedDraft.provider === 'gmail' ? 'Gmail' : 'Outlook'}. Atlas will not send the email.`,
+        ].join('\n');
+      }
       break;
     case 'generate_deck':
       actionType = 'deck';
@@ -373,7 +508,7 @@ export const executeBrainFlow = async (input: BrainExecutionInput) => {
         messages: [
           {
             role: 'system',
-            content: `${GROUNDED_SYSTEM_RULES}\nAnalyze spreadsheet context and return key metrics, trends, risks, and recommended actions.`,
+            content: `${GROUNDED_SYSTEM_RULES}\n${executionRules}\nAnalyze spreadsheet context and return key metrics, trends, risks, and recommended actions.`,
           },
           {
             role: 'user',
@@ -398,6 +533,7 @@ export const executeBrainFlow = async (input: BrainExecutionInput) => {
     const exportedLinks: string[] = [];
     const exportErrors: string[] = [];
     const hasMicrosoftToken = Boolean(input.microsoftAccessToken);
+    const hasGoogleToken = Boolean(input.googleAccessToken);
 
     if (wantsWordOutput) {
       const wordFileName = `Atlas-Document-${stampedDate}.doc`;
@@ -432,6 +568,28 @@ export const executeBrainFlow = async (input: BrainExecutionInput) => {
           const message = error instanceof Error ? error.message : 'Unknown error';
           exportErrors.push(`Word export failed: ${message}`);
         }
+      } else if (hasGoogleToken) {
+        try {
+          const doc = await createGoogleDocFromText({
+            accessToken: input.googleAccessToken!,
+            title: `Atlas Document ${stampedDate}`,
+            text: renderedOutput,
+          });
+          cloudCreated = true;
+          exportedLinks.push(`Google Docs: ${doc.webUrl}`);
+          activityLinks.word = doc.webUrl;
+          activityLinks.drive = doc.webUrl;
+          downloads.push({
+            kind: 'word',
+            fileName: wordFileName,
+            mimeType: 'application/vnd.google-apps.document',
+            webUrl: doc.webUrl,
+            origin: 'google',
+          });
+        } catch (error) {
+          const message = error instanceof Error ? error.message : 'Unknown error';
+          exportErrors.push(`Google Docs export failed: ${message}`);
+        }
       }
 
       if (!cloudCreated) {
@@ -447,28 +605,30 @@ export const executeBrainFlow = async (input: BrainExecutionInput) => {
     }
 
     if (wantsExcelOutput) {
-      const excelFileName = `Atlas-Spreadsheet-${stampedDate}.csv`;
-      const excelCsv = `Section,Details\n"Summary","${renderedOutput.replace(/"/g, '""').replace(/\n/g, ' ')}"`;
+      const excelFileName = `Atlas-Spreadsheet-${stampedDate}.xlsx`;
+      const workbookBuffer = createWorkbookFromText({ text: renderedOutput });
       let cloudCreated = false;
 
       if (hasMicrosoftToken) {
         try {
-          const csv = await createDriveFile({
+          const workbook = await createDriveFile({
             accessToken: input.microsoftAccessToken!,
             fileName: excelFileName,
-            content: excelCsv,
-            contentType: 'text/csv; charset=utf-8',
+            content: workbookBuffer,
+            contentType:
+              'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
           });
-          if (csv.webUrl) {
+          if (workbook.webUrl) {
             cloudCreated = true;
-            exportedLinks.push(`Excel (CSV): ${csv.webUrl}`);
-            activityLinks.excel = csv.webUrl;
-            activityLinks.onedrive = activityLinks.onedrive || csv.webUrl;
+            exportedLinks.push(`Excel: ${workbook.webUrl}`);
+            activityLinks.excel = workbook.webUrl;
+            activityLinks.onedrive = activityLinks.onedrive || workbook.webUrl;
             downloads.push({
               kind: 'excel',
               fileName: excelFileName,
-              mimeType: 'text/csv; charset=utf-8',
-              webUrl: csv.webUrl,
+              mimeType:
+                'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+              webUrl: workbook.webUrl,
               origin: 'microsoft',
             });
           }
@@ -476,14 +636,36 @@ export const executeBrainFlow = async (input: BrainExecutionInput) => {
           const message = error instanceof Error ? error.message : 'Unknown error';
           exportErrors.push(`Excel export failed: ${message}`);
         }
+      } else if (hasGoogleToken) {
+        try {
+          const sheet = await createGoogleSheetFromText({
+            accessToken: input.googleAccessToken!,
+            title: `Atlas Spreadsheet ${stampedDate}`,
+            text: renderedOutput,
+          });
+          cloudCreated = true;
+          exportedLinks.push(`Google Sheets: ${sheet.webUrl}`);
+          activityLinks.excel = sheet.webUrl;
+          activityLinks.drive = activityLinks.drive || sheet.webUrl;
+          downloads.push({
+            kind: 'excel',
+            fileName: excelFileName,
+            mimeType: 'application/vnd.google-apps.spreadsheet',
+            webUrl: sheet.webUrl,
+            origin: 'google',
+          });
+        } catch (error) {
+          const message = error instanceof Error ? error.message : 'Unknown error';
+          exportErrors.push(`Google Sheets export failed: ${message}`);
+        }
       }
 
       if (!cloudCreated) {
         downloads.push({
           kind: 'excel',
           fileName: excelFileName,
-          mimeType: 'text/csv; charset=utf-8',
-          contentBase64: toBase64(excelCsv),
+          mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          contentBase64: workbookBuffer.toString('base64'),
           origin: 'local',
         });
         exportedLinks.push(`Excel (download): ${excelFileName}`);
@@ -491,8 +673,11 @@ export const executeBrainFlow = async (input: BrainExecutionInput) => {
     }
 
     if (wantsPowerPointOutput) {
-      const pptFileName = `Atlas-Deck-Outline-${stampedDate}.md`;
-      const deckOutline = `# Atlas Deck Outline\n\n${renderedOutput}`;
+      const pptFileName = `Atlas-Deck-${stampedDate}.pptx`;
+      const pptBuffer = await createPresentationFromText({
+        title: input.query,
+        text: renderedOutput,
+      });
       let cloudCreated = false;
 
       if (hasMicrosoftToken) {
@@ -500,18 +685,20 @@ export const executeBrainFlow = async (input: BrainExecutionInput) => {
           const deck = await createDriveFile({
             accessToken: input.microsoftAccessToken!,
             fileName: pptFileName,
-            content: deckOutline,
-            contentType: 'text/markdown; charset=utf-8',
+            content: pptBuffer,
+            contentType:
+              'application/vnd.openxmlformats-officedocument.presentationml.presentation',
           });
           if (deck.webUrl) {
             cloudCreated = true;
-            exportedLinks.push(`PowerPoint outline: ${deck.webUrl}`);
+            exportedLinks.push(`PowerPoint: ${deck.webUrl}`);
             activityLinks.powerpoint = deck.webUrl;
             activityLinks.onedrive = activityLinks.onedrive || deck.webUrl;
             downloads.push({
               kind: 'powerpoint',
               fileName: pptFileName,
-              mimeType: 'text/markdown; charset=utf-8',
+              mimeType:
+                'application/vnd.openxmlformats-officedocument.presentationml.presentation',
               webUrl: deck.webUrl,
               origin: 'microsoft',
             });
@@ -520,17 +707,40 @@ export const executeBrainFlow = async (input: BrainExecutionInput) => {
           const message = error instanceof Error ? error.message : 'Unknown error';
           exportErrors.push(`PowerPoint export failed: ${message}`);
         }
+      } else if (hasGoogleToken) {
+        try {
+          const deck = await createGoogleSlidesFromText({
+            accessToken: input.googleAccessToken!,
+            title: `Atlas Deck ${stampedDate}`,
+            text: renderedOutput,
+          });
+          cloudCreated = true;
+          exportedLinks.push(`Google Slides: ${deck.webUrl}`);
+          activityLinks.powerpoint = deck.webUrl;
+          activityLinks.drive = activityLinks.drive || deck.webUrl;
+          downloads.push({
+            kind: 'powerpoint',
+            fileName: pptFileName,
+            mimeType: 'application/vnd.google-apps.presentation',
+            webUrl: deck.webUrl,
+            origin: 'google',
+          });
+        } catch (error) {
+          const message = error instanceof Error ? error.message : 'Unknown error';
+          exportErrors.push(`Google Slides export failed: ${message}`);
+        }
       }
 
       if (!cloudCreated) {
         downloads.push({
           kind: 'powerpoint',
           fileName: pptFileName,
-          mimeType: 'text/markdown; charset=utf-8',
-          contentBase64: toBase64(deckOutline),
+          mimeType:
+            'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+          contentBase64: pptBuffer.toString('base64'),
           origin: 'local',
         });
-        exportedLinks.push(`PowerPoint outline (download): ${pptFileName}`);
+        exportedLinks.push(`PowerPoint (download): ${pptFileName}`);
       }
     }
 
@@ -559,9 +769,12 @@ export const executeBrainFlow = async (input: BrainExecutionInput) => {
   ]);
 
   return {
+    route,
+    loadedMcpServers,
     intent: effectiveIntent,
     output,
     modelUsed,
     downloads,
+    pendingDraft,
   };
 };

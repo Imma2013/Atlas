@@ -309,3 +309,13 @@ Expected response:
   Next: Redeploy and test: 'most recent outlook email' on non-SPO tenant, then 'make word+powerpoint' to confirm meaningful local file content + download buttons.
 - [2026-03-08 09:15:45] [T1] [Done] Task: UI overhaul pass using screenshot references: updated chat hero/composer flow with starter cards and in-bar web toggle, swapped Apps tab icons to Microsoft official brand icon assets, fixed workspace fallback so email queries survive SPO/drive failures, and fixed doc generation so 'make a word document' produces direct document content (incl. single-word requests) instead of capability disclaimers.
   Next: Redeploy and verify: (1) 'make a word document with just the word X' outputs X in downloaded doc, (2) 'most recent outlook email' returns mail even on non-SPO tenant, (3) Apps tab renders official icons from Microsoft CDN.
+- [2026-03-08 17:46:59] [T1] [Done] Task: Added test-only billing bypass flag in brain engine: set ATLAS_DISABLE_BILLING_ENFORCEMENT=true/1 to skip plan gating (including Opus/deck free-plan block) while preserving Stripe/billing code paths.
+  Next: Set env flag in Vercel for testing, redeploy, validate deck + multi-export prompts, then disable flag before production billing enforcement.
+- [2026-03-10 03:17:43] [T1] [Done] Task: Installed and smoke-tested @azure/mcp@2.0.0-beta.20 in backend; verified azmcp help/server start help
+  Next: User can provide Azure auth context (az login/service principal) for live command tests
+- [2026-03-10 04:18:20] [T1] [Done] Task: Implemented strict JIT MCP router, Outlook draft-confirm UX, Gemini Flash JIT default + Sonnet/Opus 4.6 aliases, disabled active Stripe endpoints, added Playwright headless web-search path with SearchCans fallback
+  Next: User can test /chat web toggle + Outlook draft confirmation + Microsoft cross-app prompts; optional: define custom MCP servers for missing M365 apps
+- [2026-03-10 09:35:49] [T1] [Done] Task: Wired JIT Outlook MCP loading policy: route-selected Outlook now maps to mcp_MailTools read+draft mode with send/reply tools explicitly blocked; exposed loaded server/tool metadata in chat response and UI
+  Next: User can validate Outlook route shows blocked send tools and draft-confirm-only behavior in /chat
+- [2026-03-10 14:22:10] [T1] [Done] Task: Added deterministic MCP tool subsetting per prompt/intent (max 3 tools per server) and tightened router guardrails (dedupe + max 4 servers) to reduce Gemini Flash hallucination surface and latency
+  Next: User can test prompts for Outlook/Excel/PowerPoint and verify chat shows only narrowed tool list per request

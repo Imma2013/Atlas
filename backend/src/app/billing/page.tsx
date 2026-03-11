@@ -1,22 +1,18 @@
-const plans = [
-  { name: 'Free', price: '$0', actions: '50 actions', opus: 'No Opus' },
+const modelModes = [
   {
-    name: 'Starter',
-    price: '$19/mo',
-    actions: '300 actions',
-    opus: 'No Opus',
+    name: 'ATLAS JIT Router',
+    model: 'Gemini Flash',
+    details: 'Strict JSON classifier. Chooses required Microsoft servers only.',
   },
   {
-    name: 'Pro',
-    price: '$49/mo',
-    actions: '1,000 actions',
-    opus: 'Opus enabled',
+    name: 'ATLAS Final',
+    model: 'Sonnet 4.6',
+    details: 'Primary execution model for summaries, drafting, and multi-step workflows.',
   },
   {
-    name: 'Business',
-    price: '$129/user/mo',
-    actions: 'Unlimited',
-    opus: 'Opus enabled',
+    name: 'ATLAS Final+',
+    model: 'Opus 4.6',
+    details: 'Heavy reasoning for deck generation and complex synthesis.',
   },
 ];
 
@@ -24,24 +20,21 @@ const BillingPage = () => {
   return (
     <div className="pt-10 pb-20 px-2">
       <h1 className="text-3xl font-semibold text-black dark:text-white">
-        Billing
+        Models
       </h1>
       <p className="text-sm text-black/60 dark:text-white/60 mt-1">
-        Plan limits and Stripe-powered billing.
+        Stripe billing is disabled. Atlas now exposes model execution modes.
       </p>
       <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-3">
-        {plans.map((plan) => (
+        {modelModes.map((mode) => (
           <div
-            key={plan.name}
+            key={mode.name}
             className="rounded-xl border border-light-200 dark:border-dark-200 p-4 bg-light-primary dark:bg-dark-primary"
           >
-            <p className="font-medium text-black dark:text-white">{plan.name}</p>
-            <p className="text-2xl mt-1 text-black dark:text-white">{plan.price}</p>
+            <p className="font-medium text-black dark:text-white">{mode.name}</p>
+            <p className="text-2xl mt-1 text-black dark:text-white">{mode.model}</p>
             <p className="mt-2 text-sm text-black/70 dark:text-white/70">
-              {plan.actions}
-            </p>
-            <p className="text-sm text-black/70 dark:text-white/70">
-              {plan.opus}
+              {mode.details}
             </p>
           </div>
         ))}
