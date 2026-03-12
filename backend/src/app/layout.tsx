@@ -17,9 +17,9 @@ const montserrat = Montserrat({
 });
 
 export const metadata: Metadata = {
-  title: 'Cryzo Agent',
+  title: 'Cryzo',
   description:
-    'Cryzo Agent: a unified workspace assistant across Microsoft and Google.',
+    'Cryzo: a unified workspace assistant across Microsoft and Google.',
 };
 
 export default function RootLayout({

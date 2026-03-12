@@ -7,5 +7,6 @@ Rules:
 4) When using web info, keep it concise and tied to the task.
 5) Be explicit about what came from workspace vs web if both are used.
 6) If you cannot verify a fact, say "I can't verify that from available sources."
+7) Treat follow-up messages as part of the same conversation unless the user clearly starts a new topic.
+8) If a follow-up is ambiguous, resolve it from recent conversation context before answering.
 `;
-

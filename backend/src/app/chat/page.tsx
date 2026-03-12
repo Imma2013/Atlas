@@ -25,6 +25,7 @@ import {
   SendHorizonal,
   X,
 } from 'lucide-react';
+import CryzoLogo from '@/components/CryzoLogo';
 
 type PendingDraft = {
   provider: 'outlook' | 'gmail';
@@ -276,7 +277,7 @@ const extractLinksFromText = (text: string) => {
 const LinkifiedText = ({ text }: { text: string }) => {
   const parts = text.split(/(https?:\/\/[^\s)]+)/g);
   return (
-    <div className="break-all text-sm leading-6 text-black dark:text-white/88">
+    <div className="whitespace-pre-wrap break-words [overflow-wrap:anywhere] text-sm leading-6 text-black dark:text-white/88">
       {parts.map((part, index) => {
         if (/^https?:\/\//.test(part)) {
           return (
@@ -608,7 +609,7 @@ const ChatPage = () => {
         type: includeWeb ? 'web_search' : 'file',
         title: query.slice(0, 120),
         summary: output,
-        model_used: 'Cryzo Agent',
+        model_used: 'Cryzo',
         links: {
           ...extractLinksFromText(output),
           ...downloadLinks,
@@ -724,14 +725,12 @@ const ChatPage = () => {
   };
 
   return (
-    <div className="mx-auto flex h-[calc(100vh-5.5rem)] max-w-none flex-col overflow-x-hidden px-1.5 py-1.5 md:h-[calc(100vh-1rem)] md:max-w-6xl md:px-6 md:py-5">
-      <div className="relative flex h-full flex-col overflow-hidden rounded-[24px] border border-black/10 bg-[radial-gradient(circle_at_top_left,#eef4ff_0%,#f8fbff_32%,#ffffff_68%)] p-2 shadow-[0_24px_80px_-48px_rgba(18,48,90,0.55)] dark:border-white/10 dark:bg-[radial-gradient(circle_at_top_left,#182235_0%,#111825_35%,#090d16_70%)] dark:shadow-[0_24px_80px_-48px_rgba(0,0,0,0.92)] md:rounded-[30px] md:p-5">
+    <div className="mx-auto flex h-[calc(100vh-5.5rem)] max-w-none flex-col overflow-x-clip px-1.5 py-1.5 md:h-[calc(100vh-1rem)] md:max-w-6xl md:px-6 md:py-5">
+      <div className="relative flex h-full flex-col overflow-x-clip overflow-y-hidden rounded-[24px] border border-black/10 bg-[radial-gradient(circle_at_top_left,#eef4ff_0%,#f8fbff_32%,#ffffff_68%)] p-2 shadow-[0_24px_80px_-48px_rgba(18,48,90,0.55)] dark:border-white/10 dark:bg-[radial-gradient(circle_at_top_left,#182235_0%,#111825_35%,#090d16_70%)] dark:shadow-[0_24px_80px_-48px_rgba(0,0,0,0.92)] md:rounded-[30px] md:p-5">
         <div className="pointer-events-none absolute -left-24 -top-20 h-56 w-56 rounded-full bg-cyan-300/20 blur-3xl dark:bg-cyan-500/15" />
         <div className="pointer-events-none absolute -bottom-20 -right-24 h-56 w-56 rounded-full bg-amber-300/20 blur-3xl dark:bg-amber-500/10" />
         <div className="relative mb-3 flex items-center justify-between gap-2">
-          <p className="text-[11px] uppercase tracking-[0.18em] text-black/55 dark:text-white/55">
-            Cryzo Workspace
-          </p>
+          <CryzoLogo compact />
           <p className="text-[11px] text-black/55 dark:text-white/55">
             {messages.length} message{messages.length === 1 ? '' : 's'}
           </p>
@@ -884,7 +883,7 @@ const ChatPage = () => {
                   </div>
                 </div>
               ))}
-              {loading ? <p className="text-sm text-black/60 dark:text-white/60">Cryzo Agent is working...</p> : null}
+              {loading ? <p className="text-sm text-black/60 dark:text-white/60">Cryzo is working...</p> : null}
               <div ref={messagesEndRef} />
             </div>
           </div>
@@ -900,10 +899,10 @@ const ChatPage = () => {
               {uploadedFiles.map((file) => (
                 <span
                   key={file.fileId}
-                  className="inline-flex items-center gap-1.5 rounded-full border border-black/15 bg-white px-2.5 py-1 text-[11px] text-black/80 dark:border-white/20 dark:bg-black/20 dark:text-white/85"
+                  className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-black/15 bg-white px-2.5 py-1 text-[11px] text-black/80 dark:border-white/20 dark:bg-black/20 dark:text-white/85"
                 >
                   <Paperclip size={11} />
-                  {file.fileName}
+                  <span className="max-w-[44vw] truncate sm:max-w-[240px]">{file.fileName}</span>
                   <button
                     type="button"
                     onClick={() => removeUploadedFile(file.fileId)}
@@ -936,7 +935,7 @@ const ChatPage = () => {
             }}
             rows={2}
             placeholder="Assign a task or ask anything"
-            className="w-full resize-none rounded-xl border-none bg-transparent px-2 py-2 text-sm text-black outline-none placeholder:text-black/45 dark:text-white dark:placeholder:text-white/40"
+            className="min-w-0 w-full resize-none rounded-xl border-none bg-transparent px-2 py-2 text-sm text-black outline-none placeholder:text-black/45 dark:text-white dark:placeholder:text-white/40"
           />
           <div className="mt-2 flex items-end justify-between gap-2">
             <div className="relative flex flex-wrap items-center gap-2">
@@ -972,7 +971,7 @@ const ChatPage = () => {
               </button>
 
               {connectorOpen ? (
-                <div className="absolute bottom-10 left-0 z-30 w-[330px] rounded-2xl border border-black/10 bg-white p-3 shadow-xl dark:border-white/10 dark:bg-[#0f1522]">
+                <div className="absolute bottom-10 left-0 z-30 w-[calc(100vw-2.5rem)] max-w-[330px] rounded-2xl border border-black/10 bg-white p-3 shadow-xl dark:border-white/10 dark:bg-[#0f1522]">
                   <p className="mb-2 text-xs font-semibold uppercase tracking-[0.1em] text-black/45 dark:text-white/45">
                     Connectors
                   </p>

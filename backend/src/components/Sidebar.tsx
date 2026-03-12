@@ -10,6 +10,7 @@ import Link from 'next/link';
 import { useSelectedLayoutSegments } from 'next/navigation';
 import React from 'react';
 import Layout from './Layout';
+import CryzoLogo from './CryzoLogo';
 
 const Sidebar = ({ children }: { children: React.ReactNode }) => {
   const segments = useSelectedLayoutSegments();
@@ -46,7 +47,7 @@ const Sidebar = ({ children }: { children: React.ReactNode }) => {
             <p className="text-[11px] uppercase tracking-[0.14em] text-black/55 dark:text-white/55">
               Workspace
             </p>
-            <p className="mt-1 text-xl font-semibold tracking-tight text-black dark:text-white">Cryzo Agent</p>
+            <CryzoLogo className="mt-1" />
           </div>
 
           <div className="space-y-2">

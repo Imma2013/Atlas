@@ -228,6 +228,10 @@ const generateStandaloneDocument = async (input: {
 
 export const executeBrainFlow = async (input: BrainExecutionInput) => {
   const models = mergeModels(input.models);
+  const conversationContext = formatHistoryContext(input.history);
+  const routerPrompt = conversationContext
+    ? `Recent conversation:\n${conversationContext}\n\nCurrent request:\n${input.query}`
+    : input.query;
   const selectedSources = new Set(input.sources || []);
   const webEnabled = selectedSources.has('web');
   const workspaceEnabled =
@@ -245,16 +249,16 @@ export const executeBrainFlow = async (input: BrainExecutionInput) => {
   const explicitCreateRequest =
     wantsFileOutput && (wantsWordOutput || wantsExcelOutput || wantsPowerPointOutput);
 
-  const route = await routeMcpServers(input.query, models.routerModel);
+  const route = await routeMcpServers(routerPrompt, models.routerModel);
   const routeLoadedServers = loadMcpServersForRoute(route.required_mcp_servers);
-  const intent = inferIntentFromMcpServers(input.query, route.required_mcp_servers, webEnabled);
+  const intent = inferIntentFromMcpServers(routerPrompt, route.required_mcp_servers, webEnabled);
   let effectiveIntent: BrainIntent =
     intent === 'search_web' && !webEnabled
       ? 'search_workspace'
-      : intent === 'unknown' && workspaceEnabled
-        ? 'search_workspace'
-        : intent === 'unknown' && webEnabled
+      : intent === 'unknown' && webEnabled
           ? 'search_web'
+        : intent === 'unknown' && workspaceEnabled
+          ? 'search_workspace'
           : intent;
 
   if (explicitCreateRequest) {
@@ -268,13 +272,13 @@ export const executeBrainFlow = async (input: BrainExecutionInput) => {
   }
   const microsoftLoadedServers = selectToolsForPrompt({
     intent: effectiveIntent,
-    query: input.query,
+    query: routerPrompt,
     loaded: routeLoadedServers,
   });
   const googleLoadedServers = loadGoogleServersForPrompt({
     enabled: Boolean(input.googleAccessToken),
     intent: effectiveIntent,
-    query: input.query,
+    query: routerPrompt,
   });
   const toolCardLimit = Number(process.env.ATLAS_TOOL_CARD_LIMIT || '8');
   const loadedMcpServers = enforceToolCardLimit(
@@ -285,7 +289,6 @@ export const executeBrainFlow = async (input: BrainExecutionInput) => {
     toCompressedToolCards(loadedMcpServers),
   );
 
-  const conversationContext = formatHistoryContext(input.history);
   let workspaceSnapshot: any = null;
 
   if (workspaceEnabled) {
@@ -388,7 +391,7 @@ export const executeBrainFlow = async (input: BrainExecutionInput) => {
           model: models.midModel,
           query: input.query,
           workspaceContextText,
-          conversationContext: '',
+          conversationContext,
         });
       } else {
         output = await summarizeText({
@@ -437,7 +440,7 @@ export const executeBrainFlow = async (input: BrainExecutionInput) => {
             model: models.midModel,
             query: input.query,
             workspaceContextText,
-            conversationContext: '',
+            conversationContext,
           });
           break;
         }
@@ -467,7 +470,7 @@ export const executeBrainFlow = async (input: BrainExecutionInput) => {
             model: models.midModel,
             query: input.query,
             workspaceContextText,
-            conversationContext: '',
+            conversationContext,
           });
         }
       }
@@ -484,7 +487,10 @@ export const executeBrainFlow = async (input: BrainExecutionInput) => {
       modelUsed = models.midModel;
       activityType = 'web_search';
       {
-        const web = await searchWeb({ query: input.query, model: models.midModel });
+        const contextualWebQuery = conversationContext
+          ? `${input.query}\n\nContext:\n${conversationContext}`
+          : input.query;
+        const web = await searchWeb({ query: contextualWebQuery, model: models.midModel });
         const citations = (web.results || [])
           .slice(0, 5)
           .map((entry, index) => `${index + 1}. ${entry.name} - ${entry.url}`)
