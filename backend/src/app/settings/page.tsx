@@ -7,11 +7,12 @@ import {
   getMicrosoftAccessToken,
   hasMicrosoftAppScopes,
 } from '@/lib/microsoftAuthClient';
+import { PLAN_CONFIGS, type PlanTier } from '@/lib/plans';
 import type { MicrosoftAppKey } from '@/lib/microsoftScopes';
 import { MICROSOFT_LOGOS } from '@/lib/appLogos';
 import { CheckCircle2, Link2, LogOut, Mail, RefreshCw } from 'lucide-react';
 
-type TabKey = 'account' | 'connections';
+type TabKey = 'account' | 'connections' | 'billing';
 
 type ConnectorItem = {
   key: MicrosoftAppKey;
@@ -61,7 +62,12 @@ const connectors: ConnectorItem[] = [
 
 const SettingsPage = () => {
   const searchParams = useSearchParams();
-  const incomingTab = searchParams.get('tab') === 'connections' ? 'connections' : 'account';
+  const incomingTab =
+    searchParams.get('tab') === 'connections'
+      ? 'connections'
+      : searchParams.get('tab') === 'billing'
+        ? 'billing'
+        : 'account';
 
   const [tab, setTab] = useState<TabKey>(incomingTab);
   const [connecting, setConnecting] = useState(false);
@@ -71,6 +77,9 @@ const SettingsPage = () => {
   const [name, setName] = useState('Workspace User');
   const [version, setVersion] = useState(0);
   const [error, setError] = useState('');
+  const [billingBusy, setBillingBusy] = useState('');
+
+  const paidTiers: Array<Exclude<PlanTier, 'free'>> = ['starter', 'pro', 'business', 'enterprise'];
 
   const initials = useMemo(() => {
     const source = (name || email || 'Workspace User').trim();
@@ -164,6 +173,60 @@ const SettingsPage = () => {
     setVersion((x) => x + 1);
   };
 
+  const getLocalUserId = () => {
+    if (typeof window === 'undefined') return '';
+    const existing = localStorage.getItem('atlasUserId');
+    if (existing) return existing;
+    const created =
+      typeof crypto.randomUUID === 'function'
+        ? crypto.randomUUID()
+        : `${Date.now()}-${Math.random()}`;
+    localStorage.setItem('atlasUserId', created);
+    return created;
+  };
+
+  const startCheckout = async (tier: Exclude<PlanTier, 'free'>) => {
+    setBillingBusy(tier);
+    setError('');
+    try {
+      const userId = getLocalUserId();
+      const res = await fetch('/api/stripe/checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tier, userId }),
+      });
+      const payload = await res.json().catch(() => ({}));
+      if (!res.ok || !payload?.url) {
+        throw new Error(payload?.message || 'Failed to open checkout');
+      }
+      window.location.href = payload.url;
+    } catch (e: any) {
+      setError(e?.message || 'Failed to open checkout');
+      setBillingBusy('');
+    }
+  };
+
+  const openPortal = async () => {
+    setBillingBusy('portal');
+    setError('');
+    try {
+      const userId = getLocalUserId();
+      const res = await fetch('/api/stripe/portal', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId }),
+      });
+      const payload = await res.json().catch(() => ({}));
+      if (!res.ok || !payload?.url) {
+        throw new Error(payload?.message || 'Failed to open billing portal');
+      }
+      window.location.href = payload.url;
+    } catch (e: any) {
+      setError(e?.message || 'Failed to open billing portal');
+      setBillingBusy('');
+    }
+  };
+
   return (
     <div className="px-2 pb-20 pt-8 md:px-4">
       <div className="mx-auto max-w-5xl overflow-hidden rounded-3xl border border-black/10 bg-white/90 shadow-[0_24px_80px_-52px_rgba(0,0,0,0.55)] backdrop-blur-md dark:border-white/10 dark:bg-[#0f1522]/95">
@@ -182,13 +245,23 @@ const SettingsPage = () => {
             </button>
             <button
               onClick={() => setTab('connections')}
-              className={`w-full rounded-xl px-3 py-2 text-left text-sm transition ${
+              className={`mb-2 w-full rounded-xl px-3 py-2 text-left text-sm transition ${
                 tab === 'connections'
                   ? 'bg-black text-white dark:bg-white dark:text-black'
                   : 'text-black/80 hover:bg-black/[0.03] dark:text-white/80 dark:hover:bg-white/[0.05]'
               }`}
             >
               Connections
+            </button>
+            <button
+              onClick={() => setTab('billing')}
+              className={`w-full rounded-xl px-3 py-2 text-left text-sm transition ${
+                tab === 'billing'
+                  ? 'bg-black text-white dark:bg-white dark:text-black'
+                  : 'text-black/80 hover:bg-black/[0.03] dark:text-white/80 dark:hover:bg-white/[0.05]'
+              }`}
+            >
+              Billing
             </button>
           </aside>
 
@@ -219,18 +292,29 @@ const SettingsPage = () => {
                         <RefreshCw size={14} className={refreshing ? 'animate-spin' : ''} />
                         Refresh
                       </button>
-                      <button
-                        onClick={disconnect}
-                        className="inline-flex items-center gap-1 rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-sm text-red-700"
-                      >
-                        <LogOut size={14} />
-                        Disconnect
-                      </button>
+                      {connected ? (
+                        <button
+                          onClick={disconnect}
+                          className="inline-flex items-center gap-1 rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-sm text-red-700"
+                        >
+                          <LogOut size={14} />
+                          Disconnect
+                        </button>
+                      ) : (
+                        <button
+                          onClick={connectAllMicrosoft}
+                          disabled={connecting}
+                          className="inline-flex items-center gap-1 rounded-lg bg-black px-3 py-1.5 text-sm text-white disabled:opacity-60 dark:bg-white dark:text-black"
+                        >
+                          <Link2 size={14} />
+                          Connect
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>
               </div>
-            ) : (
+            ) : tab === 'connections' ? (
               <div>
                 <h1 className="text-3xl font-semibold tracking-tight text-black dark:text-white">Connections</h1>
                 <p className="mt-1 text-sm text-black/60 dark:text-white/60">
@@ -285,6 +369,61 @@ const SettingsPage = () => {
                     );
                   })}
                 </div>
+              </div>
+            ) : (
+              <div>
+                <h1 className="text-3xl font-semibold tracking-tight text-black dark:text-white">Billing</h1>
+                <p className="mt-1 text-sm text-black/60 dark:text-white/60">
+                  Upgrade your plan and manage recurring subscription payments.
+                </p>
+
+                <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
+                  {paidTiers.map((tier) => {
+                    const plan = PLAN_CONFIGS[tier];
+                    return (
+                      <div
+                        key={tier}
+                        className="rounded-2xl border border-black/10 bg-white p-4 dark:border-white/10 dark:bg-white/[0.02]"
+                      >
+                        <p className="text-lg font-medium capitalize text-black dark:text-white">{tier}</p>
+                        <p className="mt-1 text-2xl text-black dark:text-white">
+                          {plan.monthlyPriceUsd === null ? 'Custom' : `$${plan.monthlyPriceUsd}/mo`}
+                        </p>
+                        <p className="mt-1 text-sm text-black/60 dark:text-white/60">
+                          {plan.monthlyActions === null
+                            ? 'Unlimited monthly actions'
+                            : `${plan.monthlyActions} actions/month`}
+                        </p>
+                        {plan.monthlyPriceUsd === null ? (
+                          <a
+                            href="mailto:billing@cryzo.me?subject=Cryzo%20Enterprise%20Plan"
+                            className="mt-3 inline-block rounded-lg border border-black/15 px-3 py-2 text-sm text-black dark:border-white/20 dark:text-white"
+                          >
+                            Contact Sales
+                          </a>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => startCheckout(tier)}
+                            disabled={billingBusy.length > 0}
+                            className="mt-3 rounded-lg bg-black px-3 py-2 text-sm text-white disabled:opacity-60 dark:bg-white dark:text-black"
+                          >
+                            {billingBusy === tier ? 'Opening checkout...' : 'Choose Plan'}
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={openPortal}
+                  disabled={billingBusy.length > 0}
+                  className="mt-4 rounded-lg border border-black/15 px-3 py-2 text-sm text-black disabled:opacity-60 dark:border-white/20 dark:text-white"
+                >
+                  {billingBusy === 'portal' ? 'Opening portal...' : 'Manage Billing'}
+                </button>
               </div>
             )}
 

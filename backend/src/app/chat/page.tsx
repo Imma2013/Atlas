@@ -276,7 +276,7 @@ const extractLinksFromText = (text: string) => {
 const LinkifiedText = ({ text }: { text: string }) => {
   const parts = text.split(/(https?:\/\/[^\s)]+)/g);
   return (
-    <div className="break-words text-sm leading-6 text-black dark:text-white/88">
+    <div className="break-all text-sm leading-6 text-black dark:text-white/88">
       {parts.map((part, index) => {
         if (/^https?:\/\//.test(part)) {
           return (
@@ -285,7 +285,7 @@ const LinkifiedText = ({ text }: { text: string }) => {
               href={part}
               target="_blank"
               rel="noreferrer"
-              className="text-sky-700 underline underline-offset-2 hover:text-sky-800"
+              className="break-all text-sky-700 underline underline-offset-2 hover:text-sky-800"
             >
               {part}
             </a>
@@ -724,8 +724,8 @@ const ChatPage = () => {
   };
 
   return (
-    <div className="mx-auto flex h-[calc(100vh-1rem)] max-w-6xl flex-col px-3 py-3 md:px-6 md:py-5">
-      <div className="relative flex h-full flex-col overflow-hidden rounded-[30px] border border-black/10 bg-[radial-gradient(circle_at_top_left,#eef4ff_0%,#f8fbff_32%,#ffffff_68%)] p-3 shadow-[0_24px_80px_-48px_rgba(18,48,90,0.55)] dark:border-white/10 dark:bg-[radial-gradient(circle_at_top_left,#182235_0%,#111825_35%,#090d16_70%)] dark:shadow-[0_24px_80px_-48px_rgba(0,0,0,0.92)] md:p-5">
+    <div className="mx-auto flex h-[calc(100vh-5.5rem)] max-w-none flex-col overflow-x-hidden px-1.5 py-1.5 md:h-[calc(100vh-1rem)] md:max-w-6xl md:px-6 md:py-5">
+      <div className="relative flex h-full flex-col overflow-hidden rounded-[24px] border border-black/10 bg-[radial-gradient(circle_at_top_left,#eef4ff_0%,#f8fbff_32%,#ffffff_68%)] p-2 shadow-[0_24px_80px_-48px_rgba(18,48,90,0.55)] dark:border-white/10 dark:bg-[radial-gradient(circle_at_top_left,#182235_0%,#111825_35%,#090d16_70%)] dark:shadow-[0_24px_80px_-48px_rgba(0,0,0,0.92)] md:rounded-[30px] md:p-5">
         <div className="pointer-events-none absolute -left-24 -top-20 h-56 w-56 rounded-full bg-cyan-300/20 blur-3xl dark:bg-cyan-500/15" />
         <div className="pointer-events-none absolute -bottom-20 -right-24 h-56 w-56 rounded-full bg-amber-300/20 blur-3xl dark:bg-amber-500/10" />
         <div className="relative mb-3 flex items-center justify-between gap-2">
@@ -738,7 +738,7 @@ const ChatPage = () => {
         </div>
 
         {messages.length === 0 ? (
-          <div className="relative flex flex-1 items-center justify-center overflow-hidden rounded-3xl border border-black/10 bg-white/70 p-4 dark:border-white/10 dark:bg-white/[0.02]">
+          <div className="relative flex flex-1 items-center justify-center overflow-hidden rounded-2xl border border-black/10 bg-white/70 p-4 dark:border-white/10 dark:bg-white/[0.02] md:rounded-3xl">
             <div className="text-center">
               <h1 className="font-['PP_Editorial',serif] text-5xl leading-[0.94] text-black dark:text-white md:text-6xl">
                 What can I do for you?
@@ -749,15 +749,15 @@ const ChatPage = () => {
             </div>
           </div>
         ) : (
-          <div className="flex-1 overflow-y-auto rounded-3xl border border-black/10 bg-white/70 p-3 backdrop-blur-sm dark:border-white/10 dark:bg-white/[0.02] md:p-4">
+          <div className="flex-1 overflow-y-auto rounded-2xl border border-black/10 bg-white/70 p-2.5 backdrop-blur-sm dark:border-white/10 dark:bg-white/[0.02] md:rounded-3xl md:p-4">
             <div className="space-y-4">
               {messages.map((message, index) => (
                 <div
                   key={`${message.role}-${index}`}
-                  className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                  className={`flex min-w-0 ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
                 >
                   <div
-                    className={`w-full max-w-[92%] rounded-2xl border px-4 py-3 md:max-w-[84%] ${
+                    className={`w-full max-w-[98%] overflow-hidden rounded-2xl border px-3 py-2.5 md:max-w-[84%] md:px-4 md:py-3 ${
                       message.role === 'user'
                         ? 'border-cyan-300/50 bg-cyan-50/90 dark:border-cyan-500/35 dark:bg-cyan-500/10'
                         : 'border-black/10 bg-white/92 dark:border-white/10 dark:bg-white/[0.03]'
@@ -782,7 +782,7 @@ const ChatPage = () => {
                         <p className="text-xs text-black dark:text-white/85">
                           <span className="font-semibold">Subject:</span> {message.pendingDraft.subject}
                         </p>
-                        <pre className="mt-2 max-h-40 overflow-auto whitespace-pre-wrap rounded-lg bg-white p-2 text-xs text-black/85 dark:bg-black/40 dark:text-white/85">
+                        <pre className="mt-2 max-h-40 overflow-auto whitespace-pre-wrap break-all rounded-lg bg-white p-2 text-xs text-black/85 dark:bg-black/40 dark:text-white/85">
                           {message.pendingDraft.body}
                         </pre>
                         <div className="mt-2 flex flex-wrap items-center gap-2">
@@ -890,7 +890,7 @@ const ChatPage = () => {
           </div>
         )}
 
-        <div className="sticky bottom-0 mt-3 shrink-0 rounded-3xl border border-black/10 bg-white/90 p-3 backdrop-blur-md shadow-[0_18px_40px_-30px_rgba(0,0,0,0.65)] dark:border-white/10 dark:bg-black/55">
+        <div className="sticky bottom-0 mt-2 shrink-0 rounded-2xl border border-black/10 bg-white/90 p-2.5 backdrop-blur-md shadow-[0_18px_40px_-30px_rgba(0,0,0,0.65)] dark:border-white/10 dark:bg-black/55 md:mt-3 md:rounded-3xl md:p-3">
           {uploadedFiles.length > 0 ? (
             <div className="mb-2 rounded-xl border border-black/10 bg-black/[0.02] p-2.5 dark:border-white/15 dark:bg-white/[0.03]">
               <p className="mb-2 text-[11px] font-medium uppercase tracking-[0.08em] text-black/55 dark:text-white/55">
@@ -938,8 +938,8 @@ const ChatPage = () => {
             placeholder="Assign a task or ask anything"
             className="w-full resize-none rounded-xl border-none bg-transparent px-2 py-2 text-sm text-black outline-none placeholder:text-black/45 dark:text-white dark:placeholder:text-white/40"
           />
-          <div className="mt-2 flex items-center justify-between gap-2">
-            <div className="relative flex items-center gap-2">
+          <div className="mt-2 flex items-end justify-between gap-2">
+            <div className="relative flex flex-wrap items-center gap-2">
               <button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
@@ -1011,10 +1011,10 @@ const ChatPage = () => {
             <button
               onClick={submit}
               disabled={loading}
-              className="inline-flex items-center gap-1 rounded-xl bg-black px-4 py-2 text-sm font-medium text-white disabled:opacity-60 dark:bg-white dark:text-black"
+              aria-label={loading ? 'Running request' : 'Send message'}
+              className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-black text-white disabled:opacity-60 dark:bg-white dark:text-black"
             >
               <SendHorizonal size={14} />
-              {loading ? 'Running...' : 'Send'}
             </button>
           </div>
           {error ? <p className="mt-2 text-sm text-red-600">{error}</p> : null}
