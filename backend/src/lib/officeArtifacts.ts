@@ -128,18 +128,10 @@ export const createWorkbookFromText = (input: { text: string; title?: string }) 
     .split(/\r?\n/)
     .map((line) => line.trim())
     .filter(Boolean)
-    .slice(0, 380);
+    .slice(0, 420);
 
   const title = (input.title || 'Atlas Workbook').trim();
   const workbook = XLSX.utils.book_new();
-
-  const metadataRows: string[][] = [
-    ['Title', title],
-    ['Generated', new Date().toISOString()],
-    ['Source', 'Atlas AI'],
-    ['Instructions', input.text.slice(0, 220)],
-  ];
-  XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet(metadataRows), 'Overview');
 
   const sourceUrls = Array.from(
     new Set(
@@ -148,10 +140,6 @@ export const createWorkbookFromText = (input: { text: string; title?: string }) 
         .filter(Boolean),
     ),
   ).slice(0, 24);
-  if (sourceUrls.length > 0) {
-    const sourceRows = [['Source', 'URL'], ...sourceUrls.map((url, index) => [`Source ${index + 1}`, url])];
-    XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet(sourceRows), 'Sources');
-  }
 
   const extractDelimitedRows = (lines: string[]) => {
     const candidates = [',', '\t', ';']
@@ -208,37 +196,25 @@ export const createWorkbookFromText = (input: { text: string; title?: string }) 
     return null;
   };
 
-  const delimitedRows = extractDelimitedRows(rawLines);
-  if (delimitedRows) {
-    XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet(delimitedRows), 'Data');
-  }
-
-  const jsonRows = extractJsonRows(input.text);
-  if (!delimitedRows && jsonRows) {
-    XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet(jsonRows), 'Data');
-  }
-
-  const tableLines = rawLines.filter((line) => line.includes('|'));
-  const markdownTableRows = tableLines
-    .map((line) =>
-      line
-        .split('|')
-        .map((cell) => cell.trim())
-        .filter((cell) => cell.length > 0),
-    )
-    .filter((row) => row.length >= 2)
-    .filter((row) => !row.every((cell) => /^:?-{2,}:?$/.test(cell)));
-
-  if (!delimitedRows && !jsonRows && markdownTableRows.length >= 2) {
-    const tableRows = markdownTableRows.slice(0, 220);
-    const maxCols = Math.max(...tableRows.map((row) => row.length), 2);
-    const normalized = tableRows.map((row) => {
+  const extractMarkdownRows = (lines: string[]) => {
+    const rows = lines
+      .filter((line) => (line.match(/\|/g) || []).length >= 2)
+      .map((line) =>
+        line
+          .split('|')
+          .map((cell) => sanitizeLine(cell))
+          .filter(Boolean),
+      )
+      .filter((row) => row.length >= 2)
+      .filter((row) => !row.every((cell) => /^:?-{2,}:?$/.test(cell)));
+    if (rows.length < 2) return null;
+    const maxCols = Math.max(...rows.map((row) => row.length), 2);
+    return rows.slice(0, 220).map((row) => {
       const cloned = [...row];
       while (cloned.length < maxCols) cloned.push('');
       return cloned;
     });
-    XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet(normalized), 'Table');
-  }
+  };
 
   const kvPairs = rawLines
     .map((line) => {
@@ -249,29 +225,57 @@ export const createWorkbookFromText = (input: { text: string; title?: string }) 
     .filter((pair): pair is [string, string] => Boolean(pair))
     .slice(0, 240);
 
-  if (kvPairs.length > 0 && kvPairs.length <= 220) {
-    const kvRows = [['Field', 'Value'], ...kvPairs];
-    XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet(kvRows), 'Details');
-  }
-
   const listItems = rawLines
     .filter((line) => /^[-*•]\s+/.test(line) || /^\d+\.\s+/.test(line))
     .map((line) => sanitizeLine(line))
     .filter(Boolean)
     .slice(0, 260);
 
-  if (listItems.length > 0) {
-    const listRows = [['Item', 'Notes'], ...listItems.map((item, idx) => [`Item ${idx + 1}`, item])];
-    XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet(listRows), 'Items');
+  const delimitedRows = extractDelimitedRows(rawLines);
+  const jsonRows = extractJsonRows(input.text);
+  const markdownRows = extractMarkdownRows(rawLines);
+
+  const primaryRows =
+    markdownRows ||
+    delimitedRows ||
+    jsonRows ||
+    (kvPairs.length > 0
+      ? [['Field', 'Value'], ...kvPairs]
+      : listItems.length > 0
+        ? [['Item', 'Details'], ...listItems.map((item, idx) => [`Item ${idx + 1}`, item])]
+        : [['Section', 'Details'], ['Summary', sanitizeLine(input.text).slice(0, 4000)]]);
+
+  const reportRows: string[][] = [];
+  reportRows.push([title]);
+  reportRows.push([`Generated ${new Date().toISOString()} by Atlas`]);
+  reportRows.push([]);
+  reportRows.push(...primaryRows.map((row) => row.map((cell) => sanitizeLine(String(cell || '')))));
+
+  const reportSheet = XLSX.utils.aoa_to_sheet(reportRows);
+  const maxCols = Math.max(...reportRows.map((row) => row.length), 2);
+  reportSheet['!cols'] = Array.from({ length: maxCols }, (_, idx) => ({
+    wch: idx === 0 ? 26 : idx === 1 ? 40 : 24,
+  }));
+  const headerRowIndex = 4;
+  const endCol = XLSX.utils.encode_col(Math.max(1, maxCols) - 1);
+  const endRow = Math.max(headerRowIndex, reportRows.length);
+  reportSheet['!autofilter'] = { ref: `A${headerRowIndex}:${endCol}${endRow}` };
+  XLSX.utils.book_append_sheet(workbook, reportSheet, 'Report');
+
+  if (sourceUrls.length > 0) {
+    const sourceRows = [['Source', 'URL'], ...sourceUrls.map((url, index) => [`Source ${index + 1}`, url])];
+    const sourcesSheet = XLSX.utils.aoa_to_sheet(sourceRows);
+    sourcesSheet['!cols'] = [{ wch: 20 }, { wch: 90 }];
+    XLSX.utils.book_append_sheet(workbook, sourcesSheet, 'Sources');
   }
 
-  const fallbackRows: string[][] = rawLines.slice(0, 220).map((line, idx) => [`Line ${idx + 1}`, line]);
-  if (fallbackRows.length > 0) {
-    XLSX.utils.book_append_sheet(
-      workbook,
-      XLSX.utils.aoa_to_sheet([['Label', 'Content'], ...fallbackRows]),
-      'Notes',
-    );
+  if (listItems.length > 0) {
+    const insightsSheet = XLSX.utils.aoa_to_sheet([
+      ['Insights'],
+      ...listItems.slice(0, 120).map((item) => [item]),
+    ]);
+    insightsSheet['!cols'] = [{ wch: 96 }];
+    XLSX.utils.book_append_sheet(workbook, insightsSheet, 'Insights');
   }
 
   return XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' }) as Buffer;
@@ -346,8 +350,10 @@ export const createPresentationFromText = async (input: {
 
   const toDataUri = (buffer: Buffer, mime: string) =>
     `data:${mime};base64,${buffer.toString('base64')}`;
+  const useRemoteImages = /^(1|true)$/i.test(String(process.env.ATLAS_PPT_REMOTE_IMAGES || ''));
 
   const loadBackgroundImage = async (query: string) => {
+    if (!useRemoteImages) return null;
     const safeQuery = toKeywordQuery(query, input.title) || 'business presentation';
     try {
       const wikiSearchUrl = `https://commons.wikimedia.org/w/api.php?action=query&format=json&origin=*&generator=search&gsrnamespace=6&gsrlimit=6&gsrsearch=${encodeURIComponent(
@@ -516,6 +522,39 @@ export const createPresentationFromText = async (input: {
         fill: { color: '000000', transparency: 28 },
         line: { color: '000000', transparency: 100 },
       });
+    } else {
+      slide.addShape(pptx.ShapeType.roundRect, {
+        x: 8.35,
+        y: 0.62,
+        w: 4.45,
+        h: 6.26,
+        fill: { color: '0F172A', transparency: 20 },
+        line: { color: '334155', transparency: 40 },
+      });
+      slide.addText('Executive Snapshot', {
+        x: 8.6,
+        y: 0.95,
+        w: 3.95,
+        h: 0.4,
+        fontSize: 13,
+        bold: true,
+        color: 'BAE6FD',
+      });
+      slide.addText(
+        section.points.slice(0, 4).map((item) => ({
+          text: sanitizeLine(item),
+          options: { bullet: { indent: 14 } },
+        })),
+        {
+          x: 8.58,
+          y: 1.45,
+          w: 3.98,
+          h: 4.9,
+          fontSize: 11.5,
+          color: 'E2E8F0',
+          breakLine: true,
+        },
+      );
     }
     slide.addText(section.title || `Slide ${idx + 2}`, {
       x: 0.7,
