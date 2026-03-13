@@ -17,6 +17,17 @@ type ActivityItem = {
 };
 
 const LOCAL_ACTIVITY_KEY = 'atlasLocalActivity';
+const ACTIVITY_SELECTION_KEY = 'atlasOpenActivityItem';
+const readLocalActivity = (): ActivityItem[] => {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = localStorage.getItem(LOCAL_ACTIVITY_KEY) || '[]';
+    const parsed = JSON.parse(raw) as ActivityItem[];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+};
 
 const ActivityPage = () => {
   const router = useRouter();
@@ -24,13 +35,35 @@ const ActivityPage = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const load = async () => {
-      try {
-        const localItems =
-          typeof window !== 'undefined'
-            ? (JSON.parse(localStorage.getItem(LOCAL_ACTIVITY_KEY) || '[]') as ActivityItem[])
-            : [];
+    const mergeItems = (localItems: ActivityItem[], remoteItems: ActivityItem[]) =>
+      [...localItems, ...remoteItems]
+        .reduce((acc, item) => {
+          const key = item.chat_id || item.source_id || item.id;
+          const existingIndex = acc.findIndex(
+            (entry) => (entry.chat_id || entry.source_id || entry.id) === key,
+          );
+          if (existingIndex >= 0) {
+            const existing = acc[existingIndex];
+            const existingTs = new Date(existing.created_at).getTime();
+            const currentTs = new Date(item.created_at).getTime();
+            if (currentTs >= existingTs) {
+              acc[existingIndex] = { ...item, title: existing.title || item.title };
+            }
+          } else {
+            acc.push(item);
+          }
+          return acc;
+        }, [] as ActivityItem[])
+        .sort((a, b) => {
+          const aTs = new Date(a.created_at).getTime();
+          const bTs = new Date(b.created_at).getTime();
+          return bTs - aTs;
+        });
 
+    const load = async (showLoading = false) => {
+      if (showLoading) setLoading(true);
+      try {
+        const localItems = readLocalActivity();
         const storedUserId =
           typeof window !== 'undefined' ? localStorage.getItem('atlasUserId') : null;
 
@@ -39,7 +72,12 @@ const ActivityPage = () => {
           return;
         }
 
-        const res = await fetch(`/api/activity?userId=${storedUserId}`);
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 5000);
+        const res = await fetch(`/api/activity?userId=${storedUserId}`, {
+          signal: controller.signal,
+        });
+        clearTimeout(timeout);
         const data = await res.json().catch(() => ({}));
         const remoteItems = res.ok
           ? ((data.items || []) as ActivityItem[]).map((item) => ({
@@ -47,51 +85,44 @@ const ActivityPage = () => {
               chat_id: item.chat_id || item.source_id,
             }))
           : [];
-        const merged = [...localItems, ...remoteItems]
-          .reduce((acc, item) => {
-            const key = item.chat_id || item.source_id || item.id;
-            const existingIndex = acc.findIndex(
-              (entry) =>
-                (entry.chat_id || entry.source_id || entry.id) === key,
-            );
-            if (existingIndex >= 0) {
-              const existing = acc[existingIndex];
-              const existingTs = new Date(existing.created_at).getTime();
-              const currentTs = new Date(item.created_at).getTime();
-              if (currentTs >= existingTs) {
-                acc[existingIndex] = { ...item, title: existing.title || item.title };
-              }
-            } else {
-              acc.push(item);
-            }
-            return acc;
-          }, [] as ActivityItem[])
-          .sort((a, b) => {
-          const aTs = new Date(a.created_at).getTime();
-          const bTs = new Date(b.created_at).getTime();
-          return bTs - aTs;
-        });
-        setItems(merged);
+        setItems(mergeItems(localItems, remoteItems));
       } catch {
-        const localItems =
-          typeof window !== 'undefined'
-            ? (JSON.parse(localStorage.getItem(LOCAL_ACTIVITY_KEY) || '[]') as ActivityItem[])
-            : [];
-        setItems(localItems);
+        setItems(readLocalActivity());
       } finally {
         setLoading(false);
       }
     };
 
-    load();
+    const onStorage = (event: StorageEvent) => {
+      if (event.key && event.key !== LOCAL_ACTIVITY_KEY) return;
+      load(false);
+    };
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') load(false);
+    };
+
+    load(true);
+    window.addEventListener('storage', onStorage);
+    document.addEventListener('visibilitychange', onVisible);
+
+    const poll = window.setInterval(() => {
+      load(false);
+    }, 8000);
+
+    return () => {
+      window.removeEventListener('storage', onStorage);
+      document.removeEventListener('visibilitychange', onVisible);
+      window.clearInterval(poll);
+    };
   }, []);
 
   const openInChat = (item: ActivityItem) => {
     if (typeof window !== 'undefined') {
-      sessionStorage.setItem('atlasOpenActivityItem', JSON.stringify(item));
+      sessionStorage.setItem(ACTIVITY_SELECTION_KEY, JSON.stringify(item));
+      localStorage.setItem(ACTIVITY_SELECTION_KEY, JSON.stringify(item));
     }
 
-    router.push('/chat?fromActivity=1');
+    router.push(`/chat?fromActivity=1&activityId=${encodeURIComponent(item.id)}`);
   };
 
   return (

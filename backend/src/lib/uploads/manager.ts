@@ -41,16 +41,22 @@ type FileRes = {
     fileName: string;
     fileExtension: string;
     fileId: string;
+    initialContent?: string;
 }
 
 class UploadManager {
     private embeddingModel: BaseEmbedding<any>;
-    static uploadsDir = path.join(process.cwd(), 'data', 'uploads');
+    private static baseDataDir =
+        process.env.DATA_DIR || (process.env.VERCEL === '1' ? '/tmp' : process.cwd());
+    static uploadsDir = path.join(this.baseDataDir, 'data', 'uploads');
     static uploadedFilesRecordPath = path.join(this.uploadsDir, 'uploaded_files.json');
 
     constructor(private params: UploadManagerParams) {
         this.embeddingModel = params.embeddingModel;
+        UploadManager.ensureStorageReady();
+    }
 
+    private static ensureStorageReady() {
         if (!fs.existsSync(UploadManager.uploadsDir)) {
             fs.mkdirSync(UploadManager.uploadsDir, { recursive: true });
         }
@@ -58,13 +64,14 @@ class UploadManager {
         if (!fs.existsSync(UploadManager.uploadedFilesRecordPath)) {
             const data = {
                 files: []
-            }
+            };
 
             fs.writeFileSync(UploadManager.uploadedFilesRecordPath, JSON.stringify(data, null, 2));
         }
     }
 
     private static getRecordedFiles(): RecordedFile[] {
+        this.ensureStorageReady();
         const data = fs.readFileSync(UploadManager.uploadedFilesRecordPath, 'utf-8');
         return JSON.parse(data).files;
     }
@@ -246,11 +253,28 @@ class UploadManager {
             }
 
             UploadManager.addNewRecordedFile(fileRecord);
+            const contentPreview = (() => {
+                try {
+                    const parsed = JSON.parse(fs.readFileSync(contentFilePath, 'utf-8')) as {
+                        chunks?: Array<{ content?: string }>;
+                    };
+                    const chunks = Array.isArray(parsed.chunks) ? parsed.chunks : [];
+                    return chunks
+                        .slice(0, 3)
+                        .map((chunk) => String(chunk.content || '').trim())
+                        .filter(Boolean)
+                        .join('\n---\n')
+                        .slice(0, 4000);
+                } catch {
+                    return '';
+                }
+            })();
 
             processedFiles.push({
                 fileExtension: fileExtension || '',
                 fileId,
-                fileName: file.name
+                fileName: file.name,
+                initialContent: contentPreview,
             });
         }))
 

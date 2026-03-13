@@ -2,6 +2,14 @@ import { resolveScopesForApp } from '@/lib/microsoftScopes';
 import type { MicrosoftAppKey, MicrosoftScopeTarget } from '@/lib/microsoftScopes';
 const GRAPH_BASE_URL = 'https://graph.microsoft.com/v1.0';
 
+const cleanEnvValue = (value?: string) =>
+  String(value || '')
+    .replace(/^["']+|["']+$/g, '')
+    .replace(/\\r\\n/g, '')
+    .trim();
+
+const resolveMicrosoftTenant = () => cleanEnvValue(process.env.MICROSOFT_TENANT_ID) || 'common';
+
 const normalizeAppBaseUrl = (value?: string) =>
   (value || 'http://localhost:3000').trim().replace(/\/+$/, '');
 
@@ -51,8 +59,8 @@ export const getMicrosoftAuthUrl = (input?: {
   state?: string;
   app?: MicrosoftScopeTarget;
 }): string => {
-  const tenant = process.env.MICROSOFT_TENANT_ID || 'common';
-  const clientId = process.env.MICROSOFT_CLIENT_ID;
+  const tenant = resolveMicrosoftTenant();
+  const clientId = cleanEnvValue(process.env.MICROSOFT_CLIENT_ID);
   const redirectUri = resolveMicrosoftRedirectUri();
 
   if (!clientId || !redirectUri) {
@@ -78,9 +86,9 @@ export const exchangeMicrosoftCode = async (input: {
   code: string;
   app?: MicrosoftScopeTarget;
 }) => {
-  const tenant = process.env.MICROSOFT_TENANT_ID || 'common';
-  const clientId = process.env.MICROSOFT_CLIENT_ID;
-  const clientSecret = process.env.MICROSOFT_CLIENT_SECRET;
+  const tenant = resolveMicrosoftTenant();
+  const clientId = cleanEnvValue(process.env.MICROSOFT_CLIENT_ID);
+  const clientSecret = cleanEnvValue(process.env.MICROSOFT_CLIENT_SECRET);
   const redirectUri = resolveMicrosoftRedirectUri();
 
   if (!clientId || !clientSecret || !redirectUri) {
@@ -153,6 +161,37 @@ export const listEvents = async (accessToken: string, top = 10) =>
     accessToken,
   );
 
+export const createCalendarEvent = async (input: {
+  accessToken: string;
+  subject: string;
+  startIso: string;
+  endIso: string;
+  timeZone?: string;
+  body?: string;
+  location?: string;
+}) =>
+  graphRequest<Record<string, any>>('/me/events', input.accessToken, {
+    method: 'POST',
+    body: JSON.stringify({
+      subject: input.subject,
+      body: input.body
+        ? {
+            contentType: 'Text',
+            content: input.body,
+          }
+        : undefined,
+      start: {
+        dateTime: input.startIso,
+        timeZone: input.timeZone || 'UTC',
+      },
+      end: {
+        dateTime: input.endIso,
+        timeZone: input.timeZone || 'UTC',
+      },
+      location: input.location ? { displayName: input.location } : undefined,
+    }),
+  });
+
 export const listDriveRootChildren = async (accessToken: string, top = 25) =>
   graphRequest<{ value: Array<Record<string, any>> }>(
     `/me/drive/root/children?$top=${top}&$select=id,name,webUrl,lastModifiedDateTime,file,folder`,
@@ -168,6 +207,19 @@ export const listDriveItemChildren = async (input: {
     `/me/drive/items/${input.itemId}/children?$top=${input.top || 25}&$select=id,name,webUrl,lastModifiedDateTime,file,folder`,
     input.accessToken,
   );
+
+export const getDriveItemPreview = async (input: {
+  accessToken: string;
+  itemId: string;
+  noBrowserNav?: boolean;
+}) =>
+  graphRequest<Record<string, any>>(`/me/drive/items/${input.itemId}/preview`, input.accessToken, {
+    method: 'POST',
+    body: JSON.stringify({
+      allowEdit: true,
+      ...(input.noBrowserNav ? { viewer: 'office', chromeless: true } : {}),
+    }),
+  });
 
 export const getDriveItemContent = async (accessToken: string, id: string) => {
   const response = await fetch(`${GRAPH_BASE_URL}/me/drive/items/${id}/content`, {
@@ -206,9 +258,9 @@ export const refreshMicrosoftToken = async (input: {
   refreshToken: string;
   app?: MicrosoftScopeTarget;
 }) => {
-  const tenant = process.env.MICROSOFT_TENANT_ID || 'common';
-  const clientId = process.env.MICROSOFT_CLIENT_ID;
-  const clientSecret = process.env.MICROSOFT_CLIENT_SECRET;
+  const tenant = resolveMicrosoftTenant();
+  const clientId = cleanEnvValue(process.env.MICROSOFT_CLIENT_ID);
+  const clientSecret = cleanEnvValue(process.env.MICROSOFT_CLIENT_SECRET);
   const redirectUri = resolveMicrosoftRedirectUri();
 
   if (!clientId || !clientSecret || !redirectUri) {
@@ -306,6 +358,133 @@ export const updateDriveFileContent = async (input: {
   return (await response.json()) as Record<string, any>;
 };
 
+export const createWorkbookSession = async (input: {
+  accessToken: string;
+  itemId: string;
+  persistChanges?: boolean;
+}) => {
+  const response = await fetch(
+    `${GRAPH_BASE_URL}/me/drive/items/${input.itemId}/workbook/createSession`,
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${input.accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        persistChanges: Boolean(input.persistChanges),
+      }),
+      cache: 'no-store',
+    },
+  );
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`Failed to create workbook session (${response.status}): ${text}`);
+  }
+
+  return (await response.json()) as { id?: string };
+};
+
+export const updateWorkbookRange = async (input: {
+  accessToken: string;
+  itemId: string;
+  worksheet: string;
+  address: string;
+  values: unknown[][];
+  workbookSessionId?: string;
+}) => {
+  const headers: Record<string, string> = {
+    Authorization: `Bearer ${input.accessToken}`,
+    'Content-Type': 'application/json',
+  };
+  if (input.workbookSessionId) {
+    headers['workbook-session-id'] = input.workbookSessionId;
+  }
+
+  const response = await fetch(
+    `${GRAPH_BASE_URL}/me/drive/items/${input.itemId}/workbook/worksheets/${encodeURIComponent(
+      input.worksheet,
+    )}/range(address='${encodeURIComponent(input.address)}')`,
+    {
+      method: 'PATCH',
+      headers,
+      body: JSON.stringify({
+        values: input.values,
+      }),
+      cache: 'no-store',
+    },
+  );
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`Failed to update workbook range (${response.status}): ${text}`);
+  }
+
+  return (await response.json()) as Record<string, any>;
+};
+
+export const closeWorkbookSession = async (input: {
+  accessToken: string;
+  itemId: string;
+  workbookSessionId: string;
+}) => {
+  const response = await fetch(
+    `${GRAPH_BASE_URL}/me/drive/items/${input.itemId}/workbook/closeSession`,
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${input.accessToken}`,
+        'Content-Type': 'application/json',
+        'workbook-session-id': input.workbookSessionId,
+      },
+      body: '{}',
+      cache: 'no-store',
+    },
+  );
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`Failed to close workbook session (${response.status}): ${text}`);
+  }
+};
+
+export const runGraphBatch = async (input: {
+  accessToken: string;
+  requests: Array<{
+    id: string;
+    method: 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE';
+    url: string;
+    headers?: Record<string, string>;
+    body?: unknown;
+  }>;
+}) =>
+  graphRequest<Record<string, any>>('/$batch', input.accessToken, {
+    method: 'POST',
+    body: JSON.stringify({
+      requests: input.requests,
+    }),
+  });
+
+export const createGraphSubscription = async (input: {
+  accessToken: string;
+  changeType: 'created' | 'updated' | 'deleted' | 'created,updated' | 'updated,deleted' | 'created,updated,deleted';
+  resource: string;
+  notificationUrl: string;
+  expirationDateTime: string;
+  clientState?: string;
+}) =>
+  graphRequest<Record<string, any>>('/subscriptions', input.accessToken, {
+    method: 'POST',
+    body: JSON.stringify({
+      changeType: input.changeType,
+      resource: input.resource,
+      notificationUrl: input.notificationUrl,
+      expirationDateTime: input.expirationDateTime,
+      clientState: input.clientState,
+    }),
+  });
+
 export const createDriveFolder = async (input: {
   accessToken: string;
   folderName: string;
@@ -398,6 +577,40 @@ export const mergeTranscriptText = (segments: TranscriptSegment[]) =>
     })
     .join('\n');
 
+const toPlainText = (value: string) =>
+  value
+    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+const hydrateEmailBodies = async (accessToken: string, emails: Array<Record<string, any>>) => {
+  const targets = emails.slice(0, 2);
+  const hydrated = await Promise.all(
+    targets.map(async (item) => {
+      const id = String(item?.id || '');
+      if (!id) return item;
+      try {
+        const detail = await getEmailById(accessToken, id);
+        const bodyHtml = String(detail?.body?.content || '');
+        const bodyText = toPlainText(bodyHtml);
+        return {
+          ...item,
+          bodyPreview: bodyText.slice(0, 900) || item.bodyPreview || '',
+          body: detail?.body || item.body || undefined,
+        };
+      } catch {
+        return item;
+      }
+    }),
+  );
+  const remainder = emails.slice(2);
+  return [...hydrated, ...remainder];
+};
+
 export const searchWorkspace = async (accessToken: string, query: string) => {
   try {
     type GraphSearchResponse = {
@@ -465,8 +678,10 @@ export const searchWorkspace = async (accessToken: string, query: string) => {
       throw new Error('Graph search returned no resources');
     }
 
+    const hydratedEmails = await hydrateEmailBodies(accessToken, emails);
+
     return {
-      emails: emails.map((item) => ({
+      emails: hydratedEmails.map((item) => ({
         ...item,
         links: {
           outlook: item.webLink || '',
@@ -524,8 +739,11 @@ export const searchWorkspace = async (accessToken: string, query: string) => {
     `${item.subject || ''}`.toLowerCase().includes(norm),
   );
 
+  const selectedEmails = filteredEmails.length > 0 ? filteredEmails : emails.slice(0, 3);
+  const hydratedSelectedEmails = await hydrateEmailBodies(accessToken, selectedEmails);
+
   return {
-    emails: (filteredEmails.length > 0 ? filteredEmails : emails.slice(0, 3)).map((item) => ({
+    emails: hydratedSelectedEmails.map((item) => ({
       ...item,
       links: {
         outlook: item.webLink || '',

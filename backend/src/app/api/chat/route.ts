@@ -37,6 +37,27 @@ const bodySchema = z.object({
     .optional()
     .default([]),
   files: z.array(z.string()).optional().default([]),
+  uploadedFileContext: z
+    .array(
+      z.object({
+        fileName: z.string().optional().default('Uploaded file'),
+        initialContent: z.string().optional().default(''),
+      }),
+    )
+    .optional()
+    .default([]),
+  artifactContext: z
+    .array(
+      z.object({
+        kind: z.enum(['word', 'excel', 'powerpoint']),
+        fileName: z.string().optional().default(''),
+        webUrl: z.string().optional().default(''),
+        driveItemId: z.string().optional().default(''),
+        origin: z.enum(['microsoft', 'google', 'local']).optional().default('local'),
+      }),
+    )
+    .optional()
+    .default([]),
   chatModel: chatModelSchema.optional(),
   embeddingModel: embeddingModelSchema.optional(),
   systemInstructions: z.string().nullable().optional().default(''),
@@ -157,6 +178,9 @@ export const POST = async (req: Request) => {
           googleAccessToken: googleAccessToken || undefined,
           sources: normalizedSources,
           history: body.history,
+          uploadedFileContext: body.uploadedFileContext,
+          artifactContext: body.artifactContext,
+          fileIds: body.files,
           models: {
             routerModel:
               body.openRouterModels?.routerModel ||

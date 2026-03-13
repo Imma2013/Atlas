@@ -124,26 +124,156 @@ const toKeywordQuery = (...parts: string[]) => {
 };
 
 export const createWorkbookFromText = (input: { text: string; title?: string }) => {
-  const lines = input.text
+  const rawLines = input.text
     .split(/\r?\n/)
     .map((line) => line.trim())
     .filter(Boolean)
-    .slice(0, 80);
+    .slice(0, 380);
 
-  const title = (input.title || 'Astro Sheet').trim();
-  const rows: string[][] = [
+  const title = (input.title || 'Atlas Workbook').trim();
+  const workbook = XLSX.utils.book_new();
+
+  const metadataRows: string[][] = [
     ['Title', title],
     ['Generated', new Date().toISOString()],
-    [],
-    ['Section', 'Details'],
-    ...(lines.length > 0
-      ? lines.map((line, index) => [`Item ${index + 1}`, line])
-      : [['Summary', input.text.trim() || 'No content']]),
+    ['Source', 'Atlas AI'],
+    ['Instructions', input.text.slice(0, 220)],
   ];
+  XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet(metadataRows), 'Overview');
 
-  const sheet = XLSX.utils.aoa_to_sheet(rows);
-  const workbook = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(workbook, sheet, 'Atlas');
+  const sourceUrls = Array.from(
+    new Set(
+      (input.text.match(/https?:\/\/[^\s)]+/g) || [])
+        .map((url) => String(url).replace(/[),.;]+$/, '').trim())
+        .filter(Boolean),
+    ),
+  ).slice(0, 24);
+  if (sourceUrls.length > 0) {
+    const sourceRows = [['Source', 'URL'], ...sourceUrls.map((url, index) => [`Source ${index + 1}`, url])];
+    XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet(sourceRows), 'Sources');
+  }
+
+  const extractDelimitedRows = (lines: string[]) => {
+    const candidates = [',', '\t', ';']
+      .map((delimiter) => ({
+        delimiter,
+        rows: lines
+          .filter((line) => line.includes(delimiter))
+          .slice(0, 260)
+          .map((line) => line.split(delimiter).map((cell) => sanitizeLine(cell)))
+          .filter((row) => row.length >= 2),
+      }))
+      .filter((entry) => entry.rows.length >= 3);
+
+    if (candidates.length === 0) return null;
+    const pick = candidates.sort((a, b) => b.rows.length - a.rows.length)[0];
+    const maxCols = Math.max(...pick.rows.map((row) => row.length), 2);
+    return pick.rows.map((row) => {
+      const next = [...row];
+      while (next.length < maxCols) next.push('');
+      return next;
+    });
+  };
+
+  const extractJsonRows = (text: string) => {
+    const fenced = text.match(/```json\s*([\s\S]*?)```/i)?.[1];
+    const candidates = [fenced, text].filter(Boolean) as string[];
+    for (const candidate of candidates) {
+      try {
+        const parsed = JSON.parse(candidate);
+        if (Array.isArray(parsed) && parsed.length > 0 && parsed.every((item) => typeof item === 'object')) {
+          const columns = Array.from(
+            new Set(
+              parsed
+                .flatMap((item) => Object.keys(item || {}))
+                .map((key) => sanitizeLine(String(key)))
+                .filter(Boolean),
+            ),
+          ).slice(0, 24);
+          if (columns.length === 0) continue;
+          const rows = parsed.slice(0, 260).map((item) =>
+            columns.map((column) => {
+              const raw = (item as Record<string, unknown>)[column];
+              if (raw == null) return '';
+              if (typeof raw === 'string') return sanitizeLine(raw);
+              return sanitizeLine(JSON.stringify(raw));
+            }),
+          );
+          return [columns, ...rows];
+        }
+      } catch {
+        // no-op
+      }
+    }
+    return null;
+  };
+
+  const delimitedRows = extractDelimitedRows(rawLines);
+  if (delimitedRows) {
+    XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet(delimitedRows), 'Data');
+  }
+
+  const jsonRows = extractJsonRows(input.text);
+  if (!delimitedRows && jsonRows) {
+    XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet(jsonRows), 'Data');
+  }
+
+  const tableLines = rawLines.filter((line) => line.includes('|'));
+  const markdownTableRows = tableLines
+    .map((line) =>
+      line
+        .split('|')
+        .map((cell) => cell.trim())
+        .filter((cell) => cell.length > 0),
+    )
+    .filter((row) => row.length >= 2)
+    .filter((row) => !row.every((cell) => /^:?-{2,}:?$/.test(cell)));
+
+  if (!delimitedRows && !jsonRows && markdownTableRows.length >= 2) {
+    const tableRows = markdownTableRows.slice(0, 220);
+    const maxCols = Math.max(...tableRows.map((row) => row.length), 2);
+    const normalized = tableRows.map((row) => {
+      const cloned = [...row];
+      while (cloned.length < maxCols) cloned.push('');
+      return cloned;
+    });
+    XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet(normalized), 'Table');
+  }
+
+  const kvPairs = rawLines
+    .map((line) => {
+      const match = line.match(/^([^:]{2,80})\s*:\s*(.+)$/);
+      if (!match) return null;
+      return [sanitizeLine(match[1]), sanitizeLine(match[2])] as [string, string];
+    })
+    .filter((pair): pair is [string, string] => Boolean(pair))
+    .slice(0, 240);
+
+  if (kvPairs.length > 0 && kvPairs.length <= 220) {
+    const kvRows = [['Field', 'Value'], ...kvPairs];
+    XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet(kvRows), 'Details');
+  }
+
+  const listItems = rawLines
+    .filter((line) => /^[-*•]\s+/.test(line) || /^\d+\.\s+/.test(line))
+    .map((line) => sanitizeLine(line))
+    .filter(Boolean)
+    .slice(0, 260);
+
+  if (listItems.length > 0) {
+    const listRows = [['Item', 'Notes'], ...listItems.map((item, idx) => [`Item ${idx + 1}`, item])];
+    XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet(listRows), 'Items');
+  }
+
+  const fallbackRows: string[][] = rawLines.slice(0, 220).map((line, idx) => [`Line ${idx + 1}`, line]);
+  if (fallbackRows.length > 0) {
+    XLSX.utils.book_append_sheet(
+      workbook,
+      XLSX.utils.aoa_to_sheet([['Label', 'Content'], ...fallbackRows]),
+      'Notes',
+    );
+  }
+
   return XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' }) as Buffer;
 };
 
@@ -152,10 +282,67 @@ export const createPresentationFromText = async (input: {
   text: string;
   slideCount?: number;
 }) => {
+  const parseMarkdownTable = (text: string) => {
+    const rows = text
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter((line) => line.includes('|'))
+      .map((line) =>
+        line
+          .split('|')
+          .map((cell) => sanitizeLine(cell))
+          .filter(Boolean),
+      )
+      .filter((row) => row.length >= 2)
+      .filter((row) => !row.every((cell) => /^:?-{2,}:?$/.test(cell)));
+
+    if (rows.length < 2) return null;
+    const headers = rows[0].slice(0, 8);
+    const body = rows.slice(1, 24).map((row) => {
+      const next = [...row];
+      while (next.length < headers.length) next.push('');
+      return next.slice(0, headers.length);
+    });
+    return { headers, rows: body };
+  };
+
+  const buildChartData = (table: { headers: string[]; rows: string[][] } | null) => {
+    if (!table || table.rows.length < 2) return null;
+    const numberColumnIndex = table.headers.findIndex((_, idx) =>
+      table.rows.some((row) => Number(String(row[idx]).replace(/[^0-9.-]/g, '')) > 0),
+    );
+    if (numberColumnIndex < 0) return null;
+
+    const labelColumnIndex = numberColumnIndex === 0 ? 1 : 0;
+    const labels: string[] = [];
+    const values: number[] = [];
+    table.rows.forEach((row) => {
+      const label = String(row[labelColumnIndex] || '').trim();
+      const numeric = Number(String(row[numberColumnIndex] || '').replace(/[^0-9.-]/g, ''));
+      if (!label || !Number.isFinite(numeric)) return;
+      labels.push(label.slice(0, 40));
+      values.push(numeric);
+    });
+
+    if (labels.length < 2) return null;
+    return {
+      labels: labels.slice(0, 8),
+      values: values.slice(0, 8),
+      metric: table.headers[numberColumnIndex] || 'Value',
+    };
+  };
+
   const totalSlides = Math.min(15, Math.max(2, Number(input.slideCount || 6)));
   const contentSlides = totalSlides - 1;
   const pptx = new PptxGenJS();
   pptx.layout = 'LAYOUT_WIDE';
+  pptx.author = 'Cryzo Atlas';
+  pptx.subject = 'AI-generated presentation';
+  pptx.company = 'Cryzo';
+  pptx.theme = {
+    headFontFace: 'Aptos Display',
+    bodyFontFace: 'Aptos',
+  };
 
   const toDataUri = (buffer: Buffer, mime: string) =>
     `data:${mime};base64,${buffer.toString('base64')}`;
@@ -188,7 +375,18 @@ export const createPresentationFromText = async (input: {
       const arrayBuffer = await res.arrayBuffer();
       return toDataUri(Buffer.from(arrayBuffer), mime);
     } catch {
-      return null;
+      try {
+        const fallback = await fetch(
+          `https://source.unsplash.com/1600x900/?${encodeURIComponent(safeQuery)}`,
+          { cache: 'no-store' },
+        );
+        if (!fallback.ok) return null;
+        const mime = fallback.headers.get('content-type') || 'image/jpeg';
+        const arrayBuffer = await fallback.arrayBuffer();
+        return toDataUri(Buffer.from(arrayBuffer), mime);
+      } catch {
+        return null;
+      }
     }
   };
 
@@ -224,9 +422,80 @@ export const createPresentationFromText = async (input: {
     color: 'D1D5DB',
   });
 
-  const sections = buildSlideSections(input.title, input.text, contentSlides);
+  const parsedTable = parseMarkdownTable(input.text);
+  const chartData = buildChartData(parsedTable);
+  if (chartData) {
+    const dataSlide = pptx.addSlide();
+    dataSlide.background = { color: '0E1A2B' };
+    dataSlide.addText('Data Highlights', {
+      x: 0.7,
+      y: 0.45,
+      w: 7.6,
+      h: 0.7,
+      fontSize: 24,
+      bold: true,
+      color: 'E5E7EB',
+    });
+    dataSlide.addText(`Metric: ${chartData.metric}`, {
+      x: 0.7,
+      y: 1.05,
+      w: 5.5,
+      h: 0.35,
+      fontSize: 11,
+      color: '93C5FD',
+    });
+    dataSlide.addChart(
+      pptx.ChartType.bar,
+      [
+        {
+          name: chartData.metric,
+          labels: chartData.labels,
+          values: chartData.values,
+        },
+      ],
+      {
+        x: 0.7,
+        y: 1.45,
+        w: 7.1,
+        h: 5.4,
+        catAxisLabelFontFace: 'Aptos',
+        valAxisLabelFontFace: 'Aptos',
+        showLegend: false,
+        barDir: 'col',
+        chartColors: ['4F8BFF'],
+      },
+    );
+    dataSlide.addShape(pptx.ShapeType.roundRect, {
+      x: 8.1,
+      y: 1.45,
+      w: 4.35,
+      h: 5.4,
+      fill: { color: '111827', transparency: 12 },
+      line: { color: '1F2937', transparency: 35 },
+    });
+    dataSlide.addText(
+      chartData.labels.map((label, idx) => ({
+        text: `${label}: ${chartData.values[idx]}`,
+        options: { bullet: { indent: 18 } },
+      })),
+      {
+        x: 8.35,
+        y: 1.8,
+        w: 3.9,
+        h: 4.6,
+        fontSize: 13,
+        color: 'E5E7EB',
+      },
+    );
+  }
 
-  const palette = ['0F172A', '111827', '1E1B4B', '0C4A6E', '292524'];
+  const sections = buildSlideSections(
+    input.title,
+    input.text,
+    Math.max(1, contentSlides - (chartData ? 1 : 0)),
+  );
+
+  const palette = ['0F172A', '111827', '1E1B4B', '0C4A6E', '292524', '102A43'];
   const imageCache = await Promise.all(
     sections.map((section) =>
       loadBackgroundImage(`${input.title} ${section.title} ${section.points.slice(0, 2).join(' ')}`),
@@ -253,9 +522,16 @@ export const createPresentationFromText = async (input: {
       y: 0.45,
       w: 6.9,
       h: 0.6,
-      fontSize: 20,
+      fontSize: 24,
       bold: true,
       color: 'E5E7EB',
+    });
+    slide.addShape(pptx.ShapeType.line, {
+      x: 0.7,
+      y: 1.1,
+      w: 4.2,
+      h: 0,
+      line: { color: '38BDF8', pt: 1.5, transparency: 0 },
     });
     slide.addText(
       section.points.slice(0, 6).map((item) => ({
@@ -264,15 +540,69 @@ export const createPresentationFromText = async (input: {
       })),
       {
         x: 0.75,
-        y: 1.2,
+        y: 1.35,
         w: 6.95,
-        h: 5.7,
-        fontSize: 17,
+        h: 5.45,
+        fontSize: 16,
         color: 'F8FAFC',
         breakLine: true,
       },
     );
+    if (section.points[0]) {
+      slide.addShape(pptx.ShapeType.roundRect, {
+        x: 0.75,
+        y: 6.95,
+        w: 6.9,
+        h: 0.38,
+        fill: { color: '111827', transparency: 35 },
+        line: { color: '111827', transparency: 100 },
+      });
+      slide.addText(sanitizeLine(section.points[0]).slice(0, 86), {
+        x: 0.95,
+        y: 7.02,
+        w: 6.5,
+        h: 0.2,
+        fontSize: 9,
+        color: 'D1D5DB',
+      });
+    }
   });
+
+  const sourceUrls = Array.from(
+    new Set(
+      (input.text.match(/https?:\/\/[^\s)]+/g) || [])
+        .map((url) => String(url).replace(/[),.;]+$/, '').trim())
+        .filter(Boolean),
+    ),
+  ).slice(0, 8);
+  if (sourceUrls.length > 0) {
+    const sourceSlide = pptx.addSlide();
+    sourceSlide.background = { color: '0F172A' };
+    sourceSlide.addText('Sources', {
+      x: 0.7,
+      y: 0.55,
+      w: 11,
+      h: 0.8,
+      fontSize: 28,
+      bold: true,
+      color: 'E5E7EB',
+    });
+    sourceSlide.addText(
+      sourceUrls.map((url) => ({
+        text: url,
+        options: { bullet: { indent: 16 } },
+      })),
+      {
+        x: 0.8,
+        y: 1.5,
+        w: 12,
+        h: 5.6,
+        fontSize: 12,
+        color: 'BFDBFE',
+        breakLine: true,
+      },
+    );
+  }
 
   const buffer = (await pptx.write({ outputType: 'nodebuffer' })) as Buffer;
   return buffer;

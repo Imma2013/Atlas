@@ -319,3 +319,15 @@ Expected response:
   Next: User can validate Outlook route shows blocked send tools and draft-confirm-only behavior in /chat
 - [2026-03-10 14:22:10] [T1] [Done] Task: Added deterministic MCP tool subsetting per prompt/intent (max 3 tools per server) and tightened router guardrails (dedupe + max 4 servers) to reduce Gemini Flash hallucination surface and latency
   Next: User can test prompts for Outlook/Excel/PowerPoint and verify chat shows only narrowed tool list per request
+- [2026-03-13 02:04:59] [T1] [Done] Task: Improved artifact generation + preview UX: structured Word/Excel/PPT content, chart slide from table data, prompt-matched image fetching, and production Playwright validation screenshots
+  Next: User validate on cryzo.me chat and confirm scope for next workflow automation pass
+- [2026-03-13 11:10:08] [T1] [Done] Task: Applied frontend-design UI polish to chat (manus/perplexity-inspired layout), deployed to cryzo.me, and captured Playwright comparison screenshots
+  Next: User review UI screenshots; then iterate on tighter parity + draft-email intent fix
+- [2026-03-13 11:23:14] [T1] [Done] Task: Second UI parity pass + draft recipient fallback fix; deployed to cryzo.me and Playwright-verified draft review + web source strip
+  Next: User review visuals and request further parity tweaks
+- [2026-03-13 11:54:54] [T1] [Done] Task: Verified correct Vercel project/domain; added chat credit visibility + billing free-tier card + empty-state spacing fix; deployed to cryzo.me; Playwright validated
+  Next: User run live check and request any final UX micro-adjustments
+- [2026-03-13 12:54:49] [T1] [Done] Task: Fixed SharePoint/Teams UX gating + removed Answer/Links strip + hardened activity handoff + replaced preview summary block with cleaner preview iframe flow; deployed and Playwright-verified on cryzo.me
+  Next: User validate live flows and provide any final UX refinements
+- [2026-03-13 14:06:52] [T1] [Done] Task: Fixed production preview modal fallback: Excel/PPT now render in-app quick preview from generated previewText instead of unavailable screen; kept Word iframe behavior.
+  Next: Run broader UX refinement for artifact quality and source cards.

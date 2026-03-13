@@ -109,8 +109,15 @@ const parseRouterJson = (raw: string): Partial<MCPRouterDecision> | null => {
 const keywordMcpFallback = (query: string): MCPRouterDecision => {
   const q = query.toLowerCase();
   const selected = new Set<MCPServer>();
+  const emailContext =
+    q.includes('email') ||
+    q.includes('outlook') ||
+    q.includes('mail') ||
+    q.includes('inbox') ||
+    q.includes('recipient') ||
+    q.includes('to:');
 
-  if (q.includes('email') || q.includes('outlook') || q.includes('reply') || q.includes('draft')) {
+  if (emailContext || ((q.includes('reply') || q.includes('draft')) && emailContext)) {
     selected.add('Outlook');
   }
   if (q.includes('word') || q.includes('doc') || q.includes('document')) {
@@ -143,9 +150,18 @@ const keywordMcpFallback = (query: string): MCPRouterDecision => {
 
 const keywordFallback = (query: string): BrainIntent => {
   const q = query.toLowerCase();
+  const emailContext =
+    q.includes('email') ||
+    q.includes('outlook') ||
+    q.includes('mail') ||
+    q.includes('inbox') ||
+    q.includes('recipient') ||
+    q.includes('to:');
 
   if (q.includes('meeting') || q.includes('transcript')) return 'summarize_meeting';
-  if (q.includes('email') && q.includes('draft')) return 'draft_email';
+  if (emailContext && (q.includes('draft') || q.includes('reply') || q.includes('send'))) {
+    return 'draft_email';
+  }
   if (q.includes('email')) return 'summarize_email';
   if (q.includes('deck') || q.includes('slide')) return 'generate_deck';
   if (q.includes('spreadsheet') || q.includes('excel')) return 'analyze_spreadsheet';
@@ -218,9 +234,27 @@ export const inferIntentFromMcpServers = (
   const q = query.toLowerCase();
   const has = (name: MCPServer) => servers.includes(name);
   const hasAnyMicrosoft = servers.length > 0;
+  const emailContext =
+    q.includes('email') ||
+    q.includes('outlook') ||
+    q.includes('mail') ||
+    q.includes('inbox') ||
+    q.includes('recipient') ||
+    q.includes('to:');
 
-  if (has('Outlook') && (q.includes('draft') || q.includes('reply') || q.includes('send'))) {
+  if (
+    has('Outlook') &&
+    emailContext &&
+    (q.includes('draft') || q.includes('reply') || q.includes('send'))
+  ) {
     return 'draft_email';
+  }
+  if (
+    (has('Outlook') || q.includes('outlook')) &&
+    (has('OneDrive') || q.includes('onedrive')) &&
+    /(auto|automate|automation|attachment|save|sync|move)/.test(q)
+  ) {
+    return 'search_workspace';
   }
   if (has('PowerPoint') || q.includes('slide') || q.includes('deck') || q.includes('presentation')) {
     return 'generate_deck';
@@ -234,16 +268,26 @@ export const inferIntentFromMcpServers = (
   if (has('Outlook') && q.includes('email')) {
     return 'summarize_email';
   }
-  if (has('Word') || has('OneDrive') || has('SharePoint') || q.includes('file') || q.includes('document')) {
+  if (
+    has('Word') ||
+    has('SharePoint') ||
+    q.includes('file') ||
+    q.includes('document') ||
+    (has('OneDrive') && (q.includes('file') || q.includes('document') || q.includes('attachment')))
+  ) {
     return 'summarize_file';
   }
   if (hasAnyMicrosoft) {
     return 'search_workspace';
   }
+  const keywordIntent = keywordFallback(query);
+  if (keywordIntent !== 'search_web') {
+    return keywordIntent;
+  }
   if (webEnabled) {
     return 'search_web';
   }
-  return keywordFallback(query);
+  return keywordIntent;
 };
 
 export const classifyIntent = async (

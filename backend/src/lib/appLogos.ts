@@ -8,6 +8,8 @@ export const MICROSOFT_LOGOS = {
   teams: 'https://static2.sharepointonline.com/files/fabric-cdn-prod_20200430.002/assets/brand-icons/product/png/teams_48x1.png',
   onedrive:
     'https://static2.sharepointonline.com/files/fabric-cdn-prod_20200430.002/assets/brand-icons/product/png/onedrive_48x1.png',
+  sharepoint:
+    'https://static2.sharepointonline.com/files/fabric-cdn-prod_20200430.002/assets/brand-icons/product/png/sharepoint_48x1.png',
   calendar:
     'https://static2.sharepointonline.com/files/fabric-cdn-prod_20200430.002/assets/brand-icons/product/png/calendar_48x1.png',
 } as const;

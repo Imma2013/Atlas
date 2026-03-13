@@ -86,6 +86,30 @@ export const assertUsageWithinPlan = async (userId?: string) => {
   return { allowed: true as const, tier, used, limit };
 };
 
+export const getUsageSnapshot = async (userId?: string) => {
+  if (!userId || !hasSupabaseAdmin()) {
+    return {
+      tier: 'free' as PlanTier,
+      used: 0,
+      limit: PLAN_CONFIGS.free.monthlyActions,
+      remaining: PLAN_CONFIGS.free.monthlyActions,
+      unlimited: false,
+    };
+  }
+
+  const [tier, used] = await Promise.all([getUserPlanTier(userId), getMonthlyUsageCount(userId)]);
+  const limit = PLAN_CONFIGS[tier].monthlyActions;
+  const remaining = limit === null ? null : Math.max(0, limit - used);
+
+  return {
+    tier,
+    used,
+    limit,
+    remaining,
+    unlimited: limit === null,
+  };
+};
+
 export const recordAIUsage = async (input: {
   userId?: string;
   actionType: AIActionType;

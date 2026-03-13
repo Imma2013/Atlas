@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
@@ -10,7 +10,17 @@ import {
 import { PLAN_CONFIGS, type PlanTier } from '@/lib/plans';
 import type { MicrosoftAppKey } from '@/lib/microsoftScopes';
 import { MICROSOFT_LOGOS } from '@/lib/appLogos';
-import { CheckCircle2, Link2, LogOut, Mail, RefreshCw } from 'lucide-react';
+import {
+  CheckCircle2,
+  CreditCard,
+  Link2,
+  LogOut,
+  Mail,
+  RefreshCw,
+  Settings2,
+  Sparkles,
+  UserRound,
+} from 'lucide-react';
 
 type TabKey = 'account' | 'connections' | 'billing';
 
@@ -53,12 +63,39 @@ const connectors: ConnectorItem[] = [
     icon: MICROSOFT_LOGOS.onedrive,
   },
   {
+    key: 'sharepoint',
+    label: 'SharePoint',
+    description: 'Read and edit files from SharePoint sites.',
+    icon: MICROSOFT_LOGOS.sharepoint,
+  },
+  {
     key: 'teams',
     label: 'Teams',
     description: 'Read meeting context and transcripts.',
     icon: MICROSOFT_LOGOS.teams,
   },
 ];
+
+const tabMeta: Array<{ key: TabKey; label: string; icon: any }> = [
+  { key: 'account', label: 'Account', icon: UserRound },
+  { key: 'connections', label: 'Connections', icon: Link2 },
+  { key: 'billing', label: 'Billing', icon: CreditCard },
+];
+
+const inferMicrosoftAccountType = (email: string, upn: string) => {
+  const sample = (email || upn || '').toLowerCase();
+  if (!sample) return 'unknown' as const;
+  if (
+    sample.endsWith('@outlook.com') ||
+    sample.endsWith('@hotmail.com') ||
+    sample.endsWith('@live.com') ||
+    sample.endsWith('@msn.com') ||
+    sample.includes('live.com#')
+  ) {
+    return 'personal' as const;
+  }
+  return 'work' as const;
+};
 
 const SettingsPage = () => {
   const searchParams = useSearchParams();
@@ -78,6 +115,7 @@ const SettingsPage = () => {
   const [version, setVersion] = useState(0);
   const [error, setError] = useState('');
   const [billingBusy, setBillingBusy] = useState('');
+  const [microsoftAccountType, setMicrosoftAccountType] = useState<'unknown' | 'personal' | 'work'>('unknown');
 
   const paidTiers: Array<Exclude<PlanTier, 'free'>> = ['starter', 'pro', 'business', 'enterprise'];
 
@@ -104,6 +142,7 @@ const SettingsPage = () => {
         setConnected(false);
         setEmail('');
         setName('Workspace User');
+        setMicrosoftAccountType('unknown');
         return;
       }
 
@@ -114,12 +153,16 @@ const SettingsPage = () => {
       if (!meRes.ok) throw new Error(payload?.message || 'Failed to validate Microsoft session');
 
       setConnected(true);
-      setEmail(payload?.profile?.mail || payload?.profile?.userPrincipalName || '');
+      const mail = payload?.profile?.mail || '';
+      const upn = payload?.profile?.userPrincipalName || '';
+      setEmail(mail || upn || '');
       setName(payload?.profile?.displayName || 'Workspace User');
+      setMicrosoftAccountType(inferMicrosoftAccountType(mail, upn));
       setVersion((x) => x + 1);
     } catch (e: any) {
       setError(e?.message || 'Could not refresh account');
       setConnected(false);
+      setMicrosoftAccountType('unknown');
     } finally {
       setRefreshing(false);
     }
@@ -170,6 +213,7 @@ const SettingsPage = () => {
     setConnected(false);
     setEmail('');
     setName('Workspace User');
+    setMicrosoftAccountType('unknown');
     setVersion((x) => x + 1);
   };
 
@@ -228,47 +272,45 @@ const SettingsPage = () => {
   };
 
   return (
-    <div className="px-2 pb-20 pt-8 md:px-4">
-      <div className="mx-auto max-w-5xl overflow-hidden rounded-3xl border border-black/10 bg-white/90 shadow-[0_24px_80px_-52px_rgba(0,0,0,0.55)] backdrop-blur-md dark:border-white/10 dark:bg-[#0f1522]/95">
-        <div className="grid grid-cols-1 md:grid-cols-[230px_1fr]">
+    <div className="px-2 pb-20 pt-6 md:px-4 md:pt-8">
+      <div className="mx-auto max-w-6xl overflow-hidden rounded-3xl border border-black/10 bg-white/90 shadow-[0_24px_80px_-52px_rgba(0,0,0,0.55)] backdrop-blur-md dark:border-white/10 dark:bg-[#0f1522]/95">
+        <div className="grid grid-cols-1 md:grid-cols-[250px_1fr]">
           <aside className="border-r border-black/10 p-4 dark:border-white/10">
-            <p className="mb-3 text-xl font-semibold tracking-tight text-black dark:text-white">Settings</p>
-            <button
-              onClick={() => setTab('account')}
-              className={`mb-2 w-full rounded-xl px-3 py-2 text-left text-sm transition ${
-                tab === 'account'
-                  ? 'bg-black text-white dark:bg-white dark:text-black'
-                  : 'text-black/80 hover:bg-black/[0.03] dark:text-white/80 dark:hover:bg-white/[0.05]'
-              }`}
-            >
-              Account
-            </button>
-            <button
-              onClick={() => setTab('connections')}
-              className={`mb-2 w-full rounded-xl px-3 py-2 text-left text-sm transition ${
-                tab === 'connections'
-                  ? 'bg-black text-white dark:bg-white dark:text-black'
-                  : 'text-black/80 hover:bg-black/[0.03] dark:text-white/80 dark:hover:bg-white/[0.05]'
-              }`}
-            >
-              Connections
-            </button>
-            <button
-              onClick={() => setTab('billing')}
-              className={`w-full rounded-xl px-3 py-2 text-left text-sm transition ${
-                tab === 'billing'
-                  ? 'bg-black text-white dark:bg-white dark:text-black'
-                  : 'text-black/80 hover:bg-black/[0.03] dark:text-white/80 dark:hover:bg-white/[0.05]'
-              }`}
-            >
-              Billing
-            </button>
+            <p className="inline-flex items-center gap-1 rounded-full border border-black/10 px-2 py-1 text-[11px] uppercase tracking-[0.12em] text-black/70 dark:border-white/15 dark:text-white/70">
+              <Settings2 size={12} />
+              Workspace Settings
+            </p>
+            <p className="mt-3 font-['Iowan_Old_Style',serif] text-3xl text-black dark:text-white">Control Panel</p>
+            <div className="mt-4 space-y-2">
+              {tabMeta.map((item) => {
+                const Icon = item.icon;
+                const active = tab === item.key;
+                return (
+                  <button
+                    key={item.key}
+                    onClick={() => setTab(item.key)}
+                    className={`inline-flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm transition ${
+                      active
+                        ? 'bg-black text-white dark:bg-white dark:text-black'
+                        : 'text-black/80 hover:bg-black/[0.03] dark:text-white/80 dark:hover:bg-white/[0.05]'
+                    }`}
+                  >
+                    <Icon size={15} />
+                    {item.label}
+                  </button>
+                );
+              })}
+            </div>
           </aside>
 
           <section className="p-5 md:p-6">
             {tab === 'account' ? (
               <div>
-                <h1 className="text-3xl font-semibold tracking-tight text-black dark:text-white">Account</h1>
+                <p className="inline-flex items-center gap-1 rounded-full border border-black/10 px-2 py-1 text-[11px] uppercase tracking-[0.12em] text-black/70 dark:border-white/15 dark:text-white/70">
+                  <Sparkles size={12} />
+                  Identity
+                </p>
+                <h1 className="mt-2 font-['Iowan_Old_Style',serif] text-4xl leading-tight text-black dark:text-white">Account</h1>
                 <p className="mt-1 text-sm text-black/60 dark:text-white/60">
                   Single sign-in identity for your workspace automations.
                 </p>
@@ -281,6 +323,7 @@ const SettingsPage = () => {
                       <div>
                         <p className="text-lg font-medium text-black dark:text-white">{name}</p>
                         <p className="text-sm text-black/60 dark:text-white/60">{accountSubtitle}</p>
+                        {email ? <p className="text-xs text-black/55 dark:text-white/55">{email}</p> : null}
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
@@ -316,7 +359,11 @@ const SettingsPage = () => {
               </div>
             ) : tab === 'connections' ? (
               <div>
-                <h1 className="text-3xl font-semibold tracking-tight text-black dark:text-white">Connections</h1>
+                <p className="inline-flex items-center gap-1 rounded-full border border-black/10 px-2 py-1 text-[11px] uppercase tracking-[0.12em] text-black/70 dark:border-white/15 dark:text-white/70">
+                  <Link2 size={12} />
+                  Integrations
+                </p>
+                <h1 className="mt-2 font-['Iowan_Old_Style',serif] text-4xl leading-tight text-black dark:text-white">Connections</h1>
                 <p className="mt-1 text-sm text-black/60 dark:text-white/60">
                   Connect once to unlock all Microsoft workflow actions.
                 </p>
@@ -341,11 +388,19 @@ const SettingsPage = () => {
                       Not connected
                     </span>
                   )}
+                  {connected && microsoftAccountType === 'personal' ? (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-1 text-xs text-amber-700">
+                      SharePoint/Teams require work account
+                    </span>
+                  ) : null}
                 </div>
 
                 <div className="mt-4 divide-y divide-black/10 overflow-hidden rounded-2xl border border-black/10 dark:divide-white/10 dark:border-white/10">
                   {connectors.map((item) => {
                     const active = connected && hasMicrosoftAppScopes(item.key);
+                    const workOnly =
+                      microsoftAccountType !== 'work' &&
+                      (item.key === 'sharepoint' || item.key === 'teams');
 
                     return (
                       <div key={`${item.key}-${version}`} className="flex items-center justify-between gap-3 p-4">
@@ -360,10 +415,12 @@ const SettingsPage = () => {
                           className={`rounded-full px-2 py-1 text-xs ${
                             active
                               ? 'bg-emerald-50 text-emerald-700'
+                              : workOnly
+                                ? 'bg-amber-50 text-amber-700'
                               : 'bg-black/[0.05] text-black/65 dark:bg-white/[0.08] dark:text-white/70'
                           }`}
                         >
-                          {active ? 'Connected' : 'Missing scope'}
+                          {active ? 'Connected' : workOnly ? 'Work account only' : 'Missing scope'}
                         </span>
                       </div>
                     );
@@ -372,7 +429,11 @@ const SettingsPage = () => {
               </div>
             ) : (
               <div>
-                <h1 className="text-3xl font-semibold tracking-tight text-black dark:text-white">Billing</h1>
+                <p className="inline-flex items-center gap-1 rounded-full border border-black/10 px-2 py-1 text-[11px] uppercase tracking-[0.12em] text-black/70 dark:border-white/15 dark:text-white/70">
+                  <CreditCard size={12} />
+                  Payments
+                </p>
+                <h1 className="mt-2 font-['Iowan_Old_Style',serif] text-4xl leading-tight text-black dark:text-white">Billing</h1>
                 <p className="mt-1 text-sm text-black/60 dark:text-white/60">
                   Upgrade your plan and manage recurring subscription payments.
                 </p>
@@ -396,7 +457,7 @@ const SettingsPage = () => {
                         </p>
                         {plan.monthlyPriceUsd === null ? (
                           <a
-                            href="mailto:billing@cryzo.me?subject=Cryzo%20Enterprise%20Plan"
+                            href="mailto:lloyd.ebnchenge@gmail.com?subject=Cryzo%20Enterprise%20Plan"
                             className="mt-3 inline-block rounded-lg border border-black/15 px-3 py-2 text-sm text-black dark:border-white/20 dark:text-white"
                           >
                             Contact Sales
@@ -436,4 +497,3 @@ const SettingsPage = () => {
 };
 
 export default SettingsPage;
-

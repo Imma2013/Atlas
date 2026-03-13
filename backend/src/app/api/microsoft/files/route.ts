@@ -1,11 +1,16 @@
-﻿import {
+import {
+  closeWorkbookSession,
   createDriveFile,
   createDriveFolder,
+  createWorkbookSession,
   getDriveItemBuffer,
   getDriveItemContent,
+  getDriveItemPreview,
   listDriveItemChildren,
   listDriveRootChildren,
+  runGraphBatch,
   updateDriveFileContent,
+  updateWorkbookRange,
 } from '@/lib/microsoft';
 import { extractOfficeText, extractWorkbookText } from '@/lib/officeArtifacts';
 import { z } from 'zod';
@@ -26,9 +31,25 @@ export const GET = async (req: Request) => {
     const { searchParams } = new URL(req.url);
     const fileId = searchParams.get('id');
     const includeContent = searchParams.get('content') === '1';
+    const includePreview = searchParams.get('preview') === '1';
     const format = (searchParams.get('format') || 'text').toLowerCase();
     const children = searchParams.get('children') === '1';
     const top = Number(searchParams.get('top') || '25');
+
+    if (fileId && includePreview) {
+      const preview = await getDriveItemPreview({
+        accessToken,
+        itemId: fileId,
+        noBrowserNav: true,
+      });
+      const rawUrl = String(preview?.getUrl || '').trim();
+      const embedUrl = rawUrl
+        ? rawUrl.includes('nb=true')
+          ? rawUrl
+          : `${rawUrl}${rawUrl.includes('?') ? '&' : '?'}nb=true`
+        : '';
+      return Response.json({ fileId, embedUrl, preview }, { status: 200 });
+    }
 
     if (fileId && includeContent) {
       let content = '';
@@ -95,6 +116,43 @@ const updateFileSchema = z.object({
   id: z.string().min(1),
   content: z.string().min(1),
   format: z.enum(['doc', 'txt', 'md', 'csv', 'ppt_outline']).optional().default('txt'),
+});
+
+const workbookSessionCreateSchema = z.object({
+  action: z.literal('workbook_session_create'),
+  id: z.string().min(1),
+  persistChanges: z.boolean().optional().default(false),
+});
+
+const workbookRangeUpdateSchema = z.object({
+  action: z.literal('workbook_range_update'),
+  id: z.string().min(1),
+  worksheet: z.string().min(1),
+  address: z.string().min(1),
+  values: z.array(z.array(z.any())).min(1),
+  workbookSessionId: z.string().min(1).optional(),
+});
+
+const workbookSessionCloseSchema = z.object({
+  action: z.literal('workbook_session_close'),
+  id: z.string().min(1),
+  workbookSessionId: z.string().min(1),
+});
+
+const graphBatchSchema = z.object({
+  action: z.literal('graph_batch'),
+  requests: z
+    .array(
+      z.object({
+        id: z.string().min(1),
+        method: z.enum(['GET', 'POST', 'PATCH', 'PUT', 'DELETE']),
+        url: z.string().min(1),
+        headers: z.record(z.string(), z.string()).optional(),
+        body: z.any().optional(),
+      }),
+    )
+    .min(1)
+    .max(20),
 });
 
 const escapeHtml = (value: string) =>
@@ -210,7 +268,51 @@ export const PATCH = async (req: Request) => {
       return Response.json({ message: 'Missing Microsoft access token' }, { status: 401 });
     }
 
-    const parsed = updateFileSchema.safeParse(await req.json());
+    const body = await req.json();
+
+    const sessionCreate = workbookSessionCreateSchema.safeParse(body);
+    if (sessionCreate.success) {
+      const session = await createWorkbookSession({
+        accessToken,
+        itemId: sessionCreate.data.id,
+        persistChanges: sessionCreate.data.persistChanges,
+      });
+      return Response.json({ sessionId: session.id || '' }, { status: 200 });
+    }
+
+    const rangeUpdate = workbookRangeUpdateSchema.safeParse(body);
+    if (rangeUpdate.success) {
+      const range = await updateWorkbookRange({
+        accessToken,
+        itemId: rangeUpdate.data.id,
+        worksheet: rangeUpdate.data.worksheet,
+        address: rangeUpdate.data.address,
+        values: rangeUpdate.data.values,
+        workbookSessionId: rangeUpdate.data.workbookSessionId,
+      });
+      return Response.json({ range }, { status: 200 });
+    }
+
+    const sessionClose = workbookSessionCloseSchema.safeParse(body);
+    if (sessionClose.success) {
+      await closeWorkbookSession({
+        accessToken,
+        itemId: sessionClose.data.id,
+        workbookSessionId: sessionClose.data.workbookSessionId,
+      });
+      return Response.json({ ok: true }, { status: 200 });
+    }
+
+    const graphBatch = graphBatchSchema.safeParse(body);
+    if (graphBatch.success) {
+      const batch = await runGraphBatch({
+        accessToken,
+        requests: graphBatch.data.requests,
+      });
+      return Response.json({ batch }, { status: 200 });
+    }
+
+    const parsed = updateFileSchema.safeParse(body);
     if (!parsed.success) {
       return Response.json({ message: 'Invalid request body' }, { status: 400 });
     }
@@ -267,4 +369,5 @@ export const PATCH = async (req: Request) => {
     );
   }
 };
+
 

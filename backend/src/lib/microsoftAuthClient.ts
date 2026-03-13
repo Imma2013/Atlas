@@ -85,11 +85,14 @@ export const getMicrosoftAccessToken = async (app?: MicrosoftAppKey): Promise<st
 export const getMicrosoftGrantedScopes = (): string[] => {
   const scope = getStored().scope;
   if (!scope) return [];
-  return scope.split(/\s+/).map((v) => v.trim()).filter(Boolean);
+  return scope
+    .split(/\s+/)
+    .map((v) => v.trim().toLowerCase())
+    .filter(Boolean);
 };
 
 export const hasMicrosoftAppScopes = (app: MicrosoftAppKey): boolean => {
   const granted = new Set(getMicrosoftGrantedScopes());
   const required = MICROSOFT_APP_SCOPES[app] || [];
-  return required.every((scope) => granted.has(scope));
+  return required.every((scope) => granted.has(scope.toLowerCase()));
 };
