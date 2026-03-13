@@ -14,6 +14,10 @@ type ActivityItem = {
   model_used: string;
   created_at: string;
   links?: Record<string, string>;
+  action_items?: unknown[];
+  decisions?: unknown[];
+  actionItems?: unknown[];
+  decisionItems?: unknown[];
 };
 
 const LOCAL_ACTIVITY_KEY = 'atlasLocalActivity';
@@ -27,6 +31,54 @@ const readLocalActivity = (): ActivityItem[] => {
   } catch {
     return [];
   }
+};
+
+const toStringList = (value: unknown) =>
+  Array.isArray(value)
+    ? value
+        .map((item) => {
+          if (typeof item === 'string') return item.trim();
+          if (item && typeof item === 'object' && 'text' in (item as Record<string, unknown>)) {
+            return String((item as Record<string, unknown>).text || '').trim();
+          }
+          return String(item || '').trim();
+        })
+        .filter(Boolean)
+    : [];
+
+const parseSummarySections = (summary: string) => {
+  const lines = String(summary || '')
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  const sections: Array<{ title: string; lines: string[] }> = [];
+  let current: { title: string; lines: string[] } | null = null;
+
+  for (const line of lines) {
+    const heading =
+      line.match(/^#{1,6}\s+(.+)$/)?.[1] ||
+      line.match(/^([A-Za-z][A-Za-z0-9 _-]{2,60}):$/)?.[1];
+
+    if (heading) {
+      if (current?.lines.length) sections.push(current);
+      current = { title: heading.trim(), lines: [] };
+      continue;
+    }
+
+    if (!current) current = { title: 'Summary', lines: [] };
+    current.lines.push(line.replace(/^[-*•]\s+/, '').trim());
+  }
+
+  if (current?.lines.length) sections.push(current);
+  if (sections.length > 0) return sections;
+
+  return [
+    {
+      title: 'Summary',
+      lines: lines.slice(0, 6),
+    },
+  ];
 };
 
 const ActivityPage = () => {
@@ -83,6 +135,8 @@ const ActivityPage = () => {
           ? ((data.items || []) as ActivityItem[]).map((item) => ({
               ...item,
               chat_id: item.chat_id || item.source_id,
+              actionItems: toStringList(item.actionItems || item.action_items),
+              decisionItems: toStringList(item.decisionItems || item.decisions),
             }))
           : [];
         setItems(mergeItems(localItems, remoteItems));
@@ -174,14 +228,47 @@ const ActivityPage = () => {
               </p>
 
               {item.summary ? (
-                <div className="mt-2 rounded-xl border border-black/10 bg-black/[0.02] px-3 py-2 text-xs text-black/70 dark:border-white/10 dark:bg-white/[0.03] dark:text-white/70">
-                  {item.summary
-                    .split('\n')
-                    .filter((line) => line.trim().length > 0)
-                    .slice(0, 4)
-                    .map((line, idx) => (
-                      <p key={`${item.id}-step-${idx}`}>{line}</p>
+                <div className="mt-2 space-y-2">
+                  {parseSummarySections(item.summary)
+                    .slice(0, 3)
+                    .map((section, idx) => (
+                      <div
+                        key={`${item.id}-section-${idx}`}
+                        className="rounded-xl border border-black/10 bg-black/[0.02] px-3 py-2 text-xs text-black/70 dark:border-white/10 dark:bg-white/[0.03] dark:text-white/70"
+                      >
+                        <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-black/55 dark:text-white/55">
+                          {section.title}
+                        </p>
+                        {section.lines.slice(0, 4).map((line, lineIdx) => (
+                          <p key={`${item.id}-section-${idx}-line-${lineIdx}`}>{line}</p>
+                        ))}
+                      </div>
                     ))}
+                </div>
+              ) : null}
+
+              {(item.actionItems && item.actionItems.length > 0) || (item.decisionItems && item.decisionItems.length > 0) ? (
+                <div className="mt-2 grid gap-2 md:grid-cols-2">
+                  {item.actionItems && item.actionItems.length > 0 ? (
+                    <div className="rounded-xl border border-black/10 bg-white/70 px-3 py-2 text-xs dark:border-white/10 dark:bg-white/[0.03]">
+                      <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-black/55 dark:text-white/55">
+                        Action Items
+                      </p>
+                      {item.actionItems.slice(0, 4).map((entry, idx) => (
+                        <p key={`${item.id}-action-${idx}`}>{String(entry)}</p>
+                      ))}
+                    </div>
+                  ) : null}
+                  {item.decisionItems && item.decisionItems.length > 0 ? (
+                    <div className="rounded-xl border border-black/10 bg-white/70 px-3 py-2 text-xs dark:border-white/10 dark:bg-white/[0.03]">
+                      <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-black/55 dark:text-white/55">
+                        Decisions
+                      </p>
+                      {item.decisionItems.slice(0, 4).map((entry, idx) => (
+                        <p key={`${item.id}-decision-${idx}`}>{String(entry)}</p>
+                      ))}
+                    </div>
+                  ) : null}
                 </div>
               ) : null}
 
