@@ -536,9 +536,13 @@ export const executeBrainFlow = async (input: BrainExecutionInput) => {
   const webEnabled = selectedSources.has('web');
   const workspaceEnabled =
     selectedSources.has('workspace') || selectedSources.size === 0;
-  const wantsFileOutput = /\b(make|create|turn|convert|export|save|write|build|generate)\b/i.test(
+  const asksForFileMutation = /\b(make|create|turn|convert|export|save|write|build|generate|edit|update|revise|modify|refresh|replace)\b/i.test(
     input.query,
   );
+  const referencesExistingArtifact =
+    /\b(this|that|current|latest|last)\b/i.test(input.query) &&
+    /\b(powerpoint|ppt|slides?|deck|document|docx?|excel|spreadsheet)\b/i.test(input.query);
+  const wantsFileOutput = asksForFileMutation || referencesExistingArtifact;
   const wantsWordOutput =
     wantsFileOutput && /\b(word|doc|docx|document)\b/i.test(input.query);
   const referencesExcelAsSource = /\bfrom\s+excel\b|\bexcel\s+rows?\b|\bexcel\s+data\b/i.test(
@@ -548,23 +552,24 @@ export const executeBrainFlow = async (input: BrainExecutionInput) => {
     wantsFileOutput &&
     /\b(excel|spreadsheet|csv)\b/i.test(input.query) &&
     !referencesExcelAsSource;
-  const wantsPowerPointOutput =
-    wantsFileOutput && /\b(powerpoint|ppt|slides?|deck|presentation)\b/i.test(input.query);
-  const wantsDeckUpdate =
-    wantsPowerPointOutput &&
-    /\b(update|edit|revise|modify|refresh|replace|add images?|add pictures?|insert images?)\b/i.test(
-      input.query,
-    );
-  const wantsCalendarAutomation =
-    /\b(calendar|event|schedule)\b/i.test(input.query) &&
-    /\b(create|add|plan|build|make|convert|turn)\b/i.test(input.query);
-  const requestedSlideCount = extractRequestedSlideCount(input.query, 6);
   const latestPowerPointArtifact = (input.artifactContext || []).find(
     (artifact) =>
       artifact.kind === 'powerpoint' &&
       artifact.origin === 'microsoft' &&
       Boolean(artifact.driveItemId),
   );
+  const wantsPowerPointOutput =
+    (wantsFileOutput && /\b(powerpoint|ppt|slides?|deck|presentation)\b/i.test(input.query)) ||
+    (Boolean(latestPowerPointArtifact) && /\bslide\s*\d+|\bppt\b|\bpowerpoint\b|\bdeck\b/i.test(input.query));
+  const wantsDeckUpdate =
+    wantsPowerPointOutput &&
+    /\b(update|edit|revise|modify|refresh|replace|add images?|add pictures?|insert images?|slide\s*\d+|change\s+slide)\b/i.test(
+      input.query,
+    );
+  const wantsCalendarAutomation =
+    /\b(calendar|event|schedule)\b/i.test(input.query) &&
+    /\b(create|add|plan|build|make|convert|turn)\b/i.test(input.query);
+  const requestedSlideCount = extractRequestedSlideCount(input.query, 6);
   const explicitCreateRequest =
     wantsFileOutput && (wantsWordOutput || wantsExcelOutput || wantsPowerPointOutput);
 
@@ -1446,7 +1451,18 @@ export const executeBrainFlow = async (input: BrainExecutionInput) => {
       }
     }
 
-    if (exportedLinks.length > 0) {
+    const updatedDeckCreated =
+      wantsDeckUpdate &&
+      downloads.some(
+        (item) =>
+          item.kind === 'powerpoint' &&
+          item.origin === 'microsoft' &&
+          Boolean(item.webUrl),
+      );
+
+    if (wantsDeckUpdate && !updatedDeckCreated) {
+      output = `PowerPoint update failed. Atlas did not apply the requested slide change.\n${exportErrors.join('\n') || 'No updated deck URL was returned from Microsoft Graph.'}`;
+    } else if (exportedLinks.length > 0) {
       output = `${renderedOutput}\n\nCreated files:\n${exportedLinks.join('\n')}`;
     } else if (exportErrors.length > 0) {
       output = `${renderedOutput}\n\nFile export was requested but failed:\n${exportErrors.join('\n')}`;

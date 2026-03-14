@@ -669,13 +669,34 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
 
     const messageIndex = messages.findIndex((m) => m.messageId === messageId);
 
-    const storedUserId = localStorage.getItem('atlasUserId');
-    const userId =
-      storedUserId ||
-      (typeof crypto.randomUUID === 'function'
-        ? crypto.randomUUID()
-        : crypto.randomBytes(16).toString('hex'));
-    localStorage.setItem('atlasUserId', userId);
+    const resolveAuthUserId = () => {
+      try {
+        const keys = Object.keys(localStorage);
+        const authKey = keys.find((key) => /-auth-token$/.test(key));
+        if (!authKey) return '';
+        const raw = localStorage.getItem(authKey) || '';
+        if (!raw) return '';
+        const parsed = JSON.parse(raw) as any;
+        const user =
+          parsed?.user ||
+          parsed?.currentSession?.user ||
+          parsed?.session?.user ||
+          {};
+        const id = String(user?.id || '').trim();
+        return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id)
+          ? id
+          : '';
+      } catch {
+        return '';
+      }
+    };
+
+    const storedUserId = localStorage.getItem('atlasUserId') || '';
+    const authUserId = resolveAuthUserId();
+    const userId = authUserId || storedUserId;
+    if (userId) {
+      localStorage.setItem('atlasUserId', userId);
+    }
 
     const selectedChatModel =
       chatModelProvider?.key || localStorage.getItem('chatModelKey') || 'anthropic/claude-sonnet-4-20250514';
@@ -735,7 +756,7 @@ export const ChatProvider = ({ children }: { children: React.ReactNode }) => {
           key: 'openrouter-default',
         },
         brainMode: true,
-        userId,
+        userId: userId || undefined,
         openRouterModels: {
           midModel: selectedChatModel,
         },

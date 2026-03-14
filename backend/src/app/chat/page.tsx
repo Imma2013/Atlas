@@ -220,14 +220,28 @@ const GOOGLE_CONNECTORS: Array<{
 
 const getOrCreateUserId = () => {
   if (typeof window === 'undefined') return undefined;
-  const existing = localStorage.getItem('atlasUserId');
+  const existing = (localStorage.getItem('atlasUserId') || '').trim();
   if (existing) return existing;
-  const created =
-    typeof crypto.randomUUID === 'function'
-      ? crypto.randomUUID()
-      : `${Date.now()}-${Math.random()}`;
-  localStorage.setItem('atlasUserId', created);
-  return created;
+  try {
+    const authKey = Object.keys(localStorage).find((key) => /-auth-token$/.test(key));
+    if (authKey) {
+      const raw = localStorage.getItem(authKey) || '';
+      const parsed = JSON.parse(raw) as any;
+      const user =
+        parsed?.user ||
+        parsed?.currentSession?.user ||
+        parsed?.session?.user ||
+        {};
+      const id = String(user?.id || '').trim();
+      if (id) {
+        localStorage.setItem('atlasUserId', id);
+        return id;
+      }
+    }
+  } catch {
+    // no-op
+  }
+  return undefined;
 };
 
 const getOrCreateChatId = () => {
@@ -1245,6 +1259,12 @@ const ChatPage = () => {
       } catch {
         // best-effort only
         appendExecutionLog('error', `Graph preview lookup failed for ${download.fileName}`);
+      }
+      if (!embedUrl) {
+        const msg = `Microsoft preview failed for ${download.fileName}. Reconnect Microsoft and retry generation.`;
+        setError(msg);
+        appendExecutionLog('error', msg);
+        return;
       }
     }
 
